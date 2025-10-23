@@ -47,6 +47,16 @@ class _HomePageState extends State<HomePage> {
           child: Image.asset(
             'assets/agelink_logo.png',
             fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => Center(
+              child: Text(
+                'Agelink',
+                style: TextStyle(
+                    color: Constants.darkBlue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18
+                ),
+              ),
+            ),
           ),
         ),
         actions: [
@@ -66,7 +76,11 @@ class _HomePageState extends State<HomePage> {
       ),
 
       // 2. Set the body to show the currently selected page from the list
-      body: _pages.elementAt(_selectedIndex),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
+
 
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
@@ -76,41 +90,25 @@ class _HomePageState extends State<HomePage> {
         onTap: _onItemTapped,      // This is important
         type: BottomNavigationBarType.fixed,
         items: <BottomNavigationBarItem>[
+          // Home
           BottomNavigationBarItem(
-            icon: Column(
-              children: [
-                Icon(Icons.home),
-                Text('Home', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-            label: '',
+            icon: Icon(Icons.home),
+            label: 'Home', // Use the label property for standard text
           ),
+          // Schedule
           BottomNavigationBarItem(
-            icon: Column(
-              children: [
-                Icon(Icons.calendar_month),
-                Text('Schedule', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-            label: '',
+            icon: Icon(Icons.calendar_month),
+            label: 'Schedule',
           ),
+          // Notification
           BottomNavigationBarItem(
-            icon: Column(
-              children: [
-                Icon(Icons.notifications),
-                Text('Notification', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-            label: '',
+            icon: Icon(Icons.notifications),
+            label: 'Notification',
           ),
+          // Menu
           BottomNavigationBarItem(
-            icon: Column(
-              children: [
-                Icon(Icons.menu),
-                Text('Menu', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-            label: '',
+            icon: Icon(Icons.menu),
+            label: 'Menu',
           ),
         ],
       ),
