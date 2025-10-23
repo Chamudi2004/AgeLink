@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "327469030653",
+    "project_id": "agelink-f4680",
+    "storage_bucket": "agelink-f4680.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327469030653:android:9253b654f7b4d81e73b294",
+        "android_client_info": {
+          "package_name": "com.example.age_link"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBoDBC1NhBhvAdZ7dUeP692zqJzFdZ_PzU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
