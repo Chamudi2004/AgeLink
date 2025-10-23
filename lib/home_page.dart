@@ -8,7 +8,7 @@ import 'home_screen.dart';
 import 'schedule_page.dart';
 import 'notification_page.dart';
 import 'menu_page.dart';
-import 'menu_page.dart';
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
