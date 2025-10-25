@@ -106,7 +106,7 @@ class FirebaseInitializer extends StatelessWidget {
 // Defines the root widget for the application, setting up the theme.
 class AuthApp extends StatelessWidget {
   // Private constructor to ensure it is only created by FirebaseInitializer after success
-  const AuthApp._({super.key});
+  const AuthApp._();
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +116,7 @@ class AuthApp extends StatelessWidget {
       theme: ThemeData(
         // Agelink's primary color
         primarySwatch: Colors.green,
-        primaryColor: const Color(0xFF10B981),
+        primaryColor: const Color(0xFF0D47A1),
         fontFamily: 'Inter',
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
@@ -131,14 +131,14 @@ class AuthApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.0),
+            borderSide: const BorderSide(color: Color(0xFF0D47A1), width: 2.0),
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
           hintStyle: TextStyle(color: Colors.grey[500]),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981), // Primary Button Color
+            backgroundColor: const Color(0xFF0D47A1), // Primary Button Color
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12.0),
@@ -292,46 +292,46 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   // Renders the current view based on the state
+// [Inside main.dart -> class _AuthWrapperState]
+
+  // [Inside main.dart -> class _AuthWrapperState]
+
   @override
   Widget build(BuildContext context) {
     // This is only rendered if the user is NOT logged in
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                // App Header/Logo (AL - Agelink)
-                const Column(
-                  children: [
-                    Text(
-                      'AL',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF10B981),
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'PRIORITIZE YOUR LOVED ONES',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    SizedBox(height: 32),
-                  ],
-                ),
-                // Render the selected authentication screen
-                _buildAuthScreen(),
-              ],
+      body: Container( // <-- 2. WRAPPED the body with a Container
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration( // <-- 3. ADDED the gradient decoration
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFFF7FBFF),       // Fading to white
+              Color(0xFFBCD8FF), // Very light blue (like your image)
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Center( // <-- This 'Center' was the original body
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32.0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Image.asset(
+                    'assets/agelink_logo.png',
+                    height: 120,
+                  ),
+                  const SizedBox(height: 15),
+
+                  // Render the selected authentication screen
+                  _buildAuthScreen(),
+                ],
+              ),
             ),
           ),
         ),

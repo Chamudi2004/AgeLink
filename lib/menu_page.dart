@@ -228,7 +228,6 @@ class MenuPage extends StatelessWidget {
               ],
             ),
 
-            // ----------------------------------------
             // 3. SUPPORT SECTION
             // ----------------------------------------
             _buildMenuSection(

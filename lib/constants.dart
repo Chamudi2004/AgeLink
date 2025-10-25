@@ -8,4 +8,6 @@ class Constants {
   static Color orangeColor = const Color(0xFFFF9800);
   static Color darkGrey = const Color(0xFF424242);
   static Color mediumGrey = const Color(0xFF757575);
+  static Color darkblue = const Color(0xFF0D47A1);
+  static Color gradiantBlue = const Color(0xFFBCD8FF);
 }
