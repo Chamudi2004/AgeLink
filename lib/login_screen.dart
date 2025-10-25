@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'main.dart'; // To access AuthView enum
-import 'constants.dart';
 
 // --- LOGIN SCREEN ---
 class LoginScreen extends StatefulWidget {
