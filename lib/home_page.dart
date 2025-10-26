@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'constants.dart';
 import 'home_screen.dart';
-import 'schedule_page.dart';
+import 'medication_schedule_page.dart';
 import 'notification_page.dart';
 import 'app_menu_drawer.dart';
 
@@ -18,7 +18,7 @@ class _HomePageState extends State<HomePage> {
   // 1. The list of pages for the body (only 3 pages)
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),       // Index 0
-    SchedulePage(),     // Index 1
+    MedicationSchedulePage(),     // Index 1
     NotificationPage(), // Index 2
   ];
 
