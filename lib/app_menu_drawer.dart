@@ -1,3 +1,4 @@
+import 'package:age_link/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -33,8 +34,12 @@ class AppMenuDrawer extends StatelessWidget {
     // --- This is the same Firebase logic from your old menu.dart
     // It gets the 'name' from your signup_screen.dart
     final userDocRef = FirebaseFirestore.instance
+        .collection('artifacts')
+        .doc(kAppId) // Assuming appId is in scope
         .collection('users')
-        .doc(user.uid);
+        .doc(user.uid)
+        .collection('profile') // The required collection
+        .doc('details');
     // --- End Firebase logic ---
 
     return Drawer(
@@ -87,7 +92,7 @@ class AppMenuDrawer extends StatelessWidget {
                   if (snapshot.hasData && snapshot.data!.exists) {
                     final data = snapshot.data!.data() as Map<String, dynamic>;
                     // This pulls the 'name' field you saved during sign up
-                    name = data['name'] ?? 'Caregiver User';
+                    name = data['name'] ?? name;
                     email = data['email'] ?? user.email;
                   } else if (snapshot.hasError) {
                     name = 'Error loading name';
