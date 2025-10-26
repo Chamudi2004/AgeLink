@@ -4,9 +4,14 @@ import 'main.dart'; // To access AuthView
 // --- LOGIN SCREEN ---
 class LoginScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onLogin;
+  final VoidCallback onGoogleSignIn;
   final Function(AuthView) onNavigate;
 
-  const LoginScreen({super.key, required this.onLogin, required this.onNavigate});
+  const LoginScreen({super.key,
+    required this.onLogin,
+    required this.onNavigate,
+    required this.onGoogleSignIn,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -127,6 +132,38 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
+
+          //--OR divider
+          const Row(
+            children: [
+              Expanded(child: Divider(color: Colors.grey)),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text('OR', style: TextStyle(color: Colors.grey)),
+              ),
+              Expanded(child: Divider(color: Colors.grey)),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          //google sign-in button
+          ElevatedButton.icon(
+            onPressed: widget.onGoogleSignIn, // Call the new callback
+            icon: Image.asset('assets/google_logo.png', height: 24),
+            label: const Text('Continue with Google'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white, // White background
+              foregroundColor: Colors.black87, // Dark text
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.0),
+                side: const BorderSide(color: Colors.grey, width: 0.5),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.normal),
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(height: 32),
 
           // Sign Up Navigation
           TextButton(
