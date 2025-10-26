@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/gestures.dart';
 import 'main.dart'; // To access AuthView
 
 // --- LOGIN SCREEN ---
@@ -162,29 +163,37 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Checkbox(
-                    value: _rememberMe, // Now reflects saved state
-                    onChanged: (bool? newValue) {
-                      setState(() {
-                        _rememberMe = newValue ?? false;
-                      });
-                    },
-                  ),
-                  const Text('Remember me', style: TextStyle(color: Colors.black54)),
-                ],
+              Flexible(
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (bool? newValue) {
+                        setState(() {
+                          _rememberMe = newValue ?? false;
+                        });
+                      },
+                    ),
+                    Flexible(
+                      child: const Text('Remember me', style: TextStyle(color: Colors.black54)),
+                    ),
+                  ],
+                ),
               ),
+
+
               TextButton(
                 onPressed: () => widget.onNavigate(AuthView.forgotPassword),
-                child: Text(
+                child: const Text( // Added const for efficiency
                   'Forgot Password?',
                   style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.w500),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 10),
+
+
 
           // 7. Log In Button
           ClipRRect(
@@ -227,24 +236,40 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 35),
 
           // 8. Sign Up Navigation
-          TextButton(
-            onPressed: () => widget.onNavigate(AuthView.signup),
-            child: Text.rich(
-              TextSpan(
-                text: "Don't have an account? ",
-                style: const TextStyle(color: Colors.black54),
-                children: [
-                  TextSpan(
-                    text: 'Sign up now',
-                    style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
-                  ),
-                ],
+      Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Non-clickable part
+            const Text(
+              "Don't have an account? ",
+              style: TextStyle(
+                color: Colors.black54,
+                fontSize: 14,
               ),
             ),
-          ),
+            // Clickable part (InkWell wrapped around Text)
+            InkWell(
+              onTap: () {
+                widget.onNavigate(AuthView.signup);
+              },
+              borderRadius: BorderRadius.circular(4.0), // Optional: for visual feedback
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0), // Padding for better tap area
+                child: Text(
+                  'Sign up now',
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
         ],
       ),
     );

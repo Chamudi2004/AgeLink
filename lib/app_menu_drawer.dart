@@ -6,6 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AppMenuDrawer extends StatelessWidget {
   const AppMenuDrawer({super.key});
 
+  final String appId = const String.fromEnvironment(
+      'app_id', defaultValue: 'default-app-id');
+
   // Function to handle logging out (moved from old menu.dart)
   void _logout(BuildContext context) async {
     // Close the drawer first
@@ -20,6 +23,27 @@ class AppMenuDrawer extends StatelessWidget {
     await FirebaseAuth.instance.signOut();
 
     // main.dart's StreamBuilder will handle navigation to LoginScreen
+  }
+
+  // Helper widget for menu items
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    final itemColor = color ?? Colors.black87; // Default color
+
+    return ListTile(
+      leading: Icon(icon, color: itemColor),
+      title: Text(
+        title,
+        style: TextStyle(fontSize: 16, color: itemColor),
+      ),
+      onTap: onTap,
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 0),
+    );
   }
 
   @override
@@ -99,7 +123,8 @@ class AppMenuDrawer extends StatelessWidget {
                   }
 
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20.0, vertical: 20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -138,7 +163,8 @@ class AppMenuDrawer extends StatelessWidget {
                           onTap: () {
                             // TODO: Navigate to Edit Profile Page
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Edit Profile Tapped')),
+                              const SnackBar(
+                                  content: Text('Edit Profile Tapped')),
                             );
                           },
                           child: const Text(
@@ -199,27 +225,6 @@ class AppMenuDrawer extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  // Helper widget for menu items
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    Color? color,
-  }) {
-    final itemColor = color ?? Colors.black87; // Default color
-
-    return ListTile(
-      leading: Icon(icon, color: itemColor),
-      title: Text(
-        title,
-        style: TextStyle(fontSize: 16, color: itemColor),
-      ),
-      onTap: onTap,
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 0),
     );
   }
 }
