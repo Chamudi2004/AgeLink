@@ -19,6 +19,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   void _submit() {
     if (_formKey.currentState!.validate()) {
       if (_passwordController.text != _confirmPasswordController.text) {
@@ -34,6 +46,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'password': _passwordController.text,
       });
     }
+  }
+
+  Widget _buildVisibilityToggle({
+    required bool isVisible,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      icon: Icon(
+        isVisible ? Icons.visibility_off : Icons.visibility,
+        color: Colors.grey,
+      ),
+      onPressed: onPressed,
+    );
   }
 
   @override
@@ -74,10 +99,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
           TextFormField(
             controller: _passwordController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_isPasswordVisible,
+            decoration: InputDecoration(
               hintText: 'Password (min 6 characters)',
               prefixIcon: Icon(Icons.lock_outline, color: Colors.grey),
+              suffixIcon: _buildVisibilityToggle(
+                isVisible: _isPasswordVisible,
+                onPressed: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible;
+                  });
+                },
+              ),
             ),
             validator: (value) => value!.length < 6 ? 'Password is too short' : null,
           ),
@@ -85,10 +118,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
           TextFormField(
             controller: _confirmPasswordController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_isConfirmPasswordVisible,
+            decoration: InputDecoration(
               hintText: 'Confirm Password',
               prefixIcon: Icon(Icons.lock_reset_outlined, color: Colors.grey),
+              suffixIcon: _buildVisibilityToggle(
+                isVisible: _isConfirmPasswordVisible,
+                onPressed: () {
+                  setState(() {
+                    _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                  });
+                },
+              ),
             ),
             validator: (value) => value != _passwordController.text ? 'Passwords must match' : null,
           ),
@@ -136,24 +177,37 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 35),
 
           // Log In Navigation
-          TextButton(
-            onPressed: () => widget.onNavigate(AuthView.login),
-            child: const Text.rich(
-              TextSpan(
-                text: "Already have an account? ",
-                style: TextStyle(color: Colors.black54),
-                children: [
-                  TextSpan(
-                    text: 'Login here',
-                    style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
-                  ),
-                ],
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Non-clickable part
+          const Text(
+            'Already have an account? ',
+            style: TextStyle(color: Colors.black54, fontSize: 14), // Added font size for consistency
+          ),
+          // Clickable part (InkWell wrapped around Text)
+          InkWell(
+            onTap: () {
+              widget.onNavigate(AuthView.login);
+            },
+            borderRadius: BorderRadius.circular(4.0),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0),
+              child: Text(
+                'Login here',
+                style: TextStyle(
+                  color: Theme.of(context).primaryColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14, // Consistent font size
+                ),
               ),
             ),
           ),
+        ],
+      ),
         ],
       ),
     );
