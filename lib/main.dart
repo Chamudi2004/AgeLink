@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'firebase_options.dart';
 
 import 'login_screen.dart';
@@ -9,10 +10,7 @@ import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 import 'home_page.dart';
 
-
-// ----------------------------------------------------------------------------
 // 1. MAIN APPLICATION START - ASYNC INITIALIZATION
-// ----------------------------------------------------------------------------
 
 void main() {
   // Ensure Flutter binding is initialized before using plugins
@@ -106,7 +104,7 @@ class FirebaseInitializer extends StatelessWidget {
 // Defines the root widget for the application, setting up the theme.
 class AuthApp extends StatelessWidget {
   // Private constructor to ensure it is only created by FirebaseInitializer after success
-  const AuthApp._({super.key});
+  const AuthApp._();
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +114,7 @@ class AuthApp extends StatelessWidget {
       theme: ThemeData(
         // Agelink's primary color
         primarySwatch: Colors.green,
-        primaryColor: const Color(0xFF10B981),
+        primaryColor: const Color(0xFF0D47A1),
         fontFamily: 'Inter',
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
@@ -131,14 +129,14 @@ class AuthApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.0),
+            borderSide: const BorderSide(color: Color(0xFF0D47A1), width: 2.0),
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
           hintStyle: TextStyle(color: Colors.grey[500]),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981), // Primary Button Color
+            backgroundColor: const Color(0xFF0D47A1), // Primary Button Color
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12.0),
@@ -189,11 +187,39 @@ class _AuthWrapperState extends State<AuthWrapper> {
   // Instantiating services here is safe because the AuthApp waits for Firebase initialization.
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   void setView(AuthView view) {
     setState(() {
       _currentView = view;
     });
+  }
+
+  // Helper function to save profile data (used for both Email/Password and Google Sign-in)
+  Future<void> _saveUserProfile(User user, String? name) async {
+    // 1. Get the Firebase app ID
+    const appId = String.fromEnvironment('app_id', defaultValue: 'default-app-id');
+    // 2. Define the secure Firestore path for the user's private data:
+    final userProfilePath = 'artifacts/$appId/users/${user.uid}/profile/details';
+
+    // 3. Check if the profile document already exists (important for social logins)
+    final profileRef = _firestore.doc(userProfilePath);
+    final profileSnapshot = await profileRef.get();
+
+    if (!profileSnapshot.exists) {
+      final userData = {
+        'uid': user.uid,
+        'email': user.email ?? 'N/A',
+        // Use the provided name, or fall back to user's display name or a generic name
+        'name': name ?? user.displayName ?? 'Google User',
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+      // Save user details (name) to Firestore in the secure location
+      await profileRef.set(userData);
+      print("New user profile saved successfully to path: $userProfilePath");
+    } else {
+      print("Existing user profile found. Skipping Firestore write.");
+    }
   }
 
   // CENTRALIZED AUTHENTICATION HANDLER
@@ -212,13 +238,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           password: data['password'],
         );
 
-        // Save user details (name) to Firestore
-        await _firestore.collection('users').doc(userCredential.user!.uid).set({
-          'uid': userCredential.user!.uid,
-          'email': data['email'],
-          'name': data['name'],
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        await _saveUserProfile(userCredential.user!, data['name']);
 
         // Success dialog and navigation (pop loading dialog first)
         Navigator.of(context).pop();
@@ -233,6 +253,30 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // Success: Pop loading, StreamBuilder handles redirect
         Navigator.of(context).pop();
         _showStatusDialog('Success', 'Log In successful! Redirecting...');
+
+      } else if (action == 'Google Sign In') {
+        final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+        if (googleUser == null) {
+          // The user canceled the sign-in process
+          Navigator.of(context).pop();
+          return;
+        }
+
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final AuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        final UserCredential userCredential = await _auth.signInWithCredential(credential);
+
+        // Save profile data (especially name) for new Google users
+        await _saveUserProfile(userCredential.user!, userCredential.user!.displayName);
+
+        // Success: Pop loading, StreamBuilder handles redirect
+        Navigator.of(context).pop();
+        _showStatusDialog('Success', 'Google Sign In successful! Redirecting...');
 
       } else if (action == 'Forgot Password') {
         await _auth.sendPasswordResetEmail(email: data['email']);
@@ -257,6 +301,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
         message = 'Invalid email or password.';
       } else if (e.code == 'invalid-email') {
         message = 'The email address is not valid.';
+      }else if (e.code == 'account-exists-with-different-credential') {
+        message = 'This email is already registered using a different login method.';
       }
       _showStatusDialog('Error', message);
     } catch (e) {
@@ -292,46 +338,46 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   // Renders the current view based on the state
+// [Inside main.dart -> class _AuthWrapperState]
+
+  // [Inside main.dart -> class _AuthWrapperState]
+
   @override
   Widget build(BuildContext context) {
     // This is only rendered if the user is NOT logged in
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                // App Header/Logo (AL - Agelink)
-                const Column(
-                  children: [
-                    Text(
-                      'AL',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF10B981),
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'PRIORITIZE YOUR LOVED ONES',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    SizedBox(height: 32),
-                  ],
-                ),
-                // Render the selected authentication screen
-                _buildAuthScreen(),
-              ],
+      body: Container( // <-- 2. WRAPPED the body with a Container
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration( // <-- 3. ADDED the gradient decoration
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFFF7FBFF),       // Fading to white
+              Color(0xFFBCD8FF), // Very light blue (like your image)
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Center( // <-- This 'Center' was the original body
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32.0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Image.asset(
+                    'assets/agelink_logo.png',
+                    height: 120,
+                  ),
+                  const SizedBox(height: 15),
+
+                  // Render the selected authentication screen
+                  _buildAuthScreen(),
+                ],
+              ),
             ),
           ),
         ),
@@ -341,22 +387,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   // Switches between the specific screen widgets
   Widget _buildAuthScreen() {
-    switch (_currentView) {
-      case AuthView.login:
-        return LoginScreen(
-          onLogin: (data) => _handleAuthAction('Log In', data),
-          onNavigate: setView,
-        );
-      case AuthView.signup:
-        return SignUpScreen(
-          onSignUp: (data) => _handleAuthAction('Sign Up', data),
-          onNavigate: setView,
-        );
-      case AuthView.forgotPassword:
-        return ForgotPasswordScreen(
-          onSendReset: (data) => _handleAuthAction('Forgot Password', data),
-          onNavigate: setView,
-        );
-    }
+    return switch (_currentView) {
+      AuthView.login => LoginScreen(
+        onLogin: (data) => _handleAuthAction('Log In', data),
+        onGoogleSignIn: () => _handleAuthAction('Google Sign In', {}),
+        onNavigate: setView,
+      ),
+      AuthView.signup => SignUpScreen(
+        onSignUp: (data) => _handleAuthAction('Sign Up', data),
+        onNavigate: setView,
+      ),
+      AuthView.forgotPassword => ForgotPasswordScreen(
+        onSendReset: (data) => _handleAuthAction('Forgot Password', data),
+        onNavigate: setView,
+      ),
+    };
   }
 }

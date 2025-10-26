@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
-import 'main.dart'; // To access AuthView enum
+import 'main.dart'; // To access AuthView
 
 // --- LOGIN SCREEN ---
 class LoginScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onLogin;
+  final VoidCallback onGoogleSignIn;
   final Function(AuthView) onNavigate;
 
-  const LoginScreen({super.key, required this.onLogin, required this.onNavigate});
+  const LoginScreen({super.key,
+    required this.onLogin,
+    required this.onNavigate,
+    required this.onGoogleSignIn,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -33,10 +38,10 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const Text(
+          Text(
             'Welcome Back!',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
           ),
           const SizedBox(height: 32),
 
@@ -77,32 +82,100 @@ class _LoginScreenState extends State<LoginScreen> {
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () => widget.onNavigate(AuthView.forgotPassword),
-              child: const Text(
+              child: Text(
                 'Forgot Password?',
-                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
+                style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.w500),
               ),
             ),
           ),
           const SizedBox(height: 24),
 
-          // Log In Button
-          ElevatedButton(
-            onPressed: _submit,
-            child: const Text('Log In'),
+// --- UPDATED Log In Button ---
+          ClipRRect( // <-- ADDED to ensure gradient respects rounded corners
+            borderRadius: BorderRadius.circular(12.0),
+            child: ElevatedButton(
+              onPressed: _submit,
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.zero, // <-- REMOVE default button padding
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                backgroundColor: Colors.transparent, // <-- MAKE button background transparent
+                shadowColor: Colors.transparent, // <-- HIDE default shadow
+                elevation: 2,
+              ),
+              child: Ink( // <-- ADDED Ink widget for the gradient
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12.0),
+                  gradient: const LinearGradient( // <-- YOUR GRADIENT
+                    colors: [
+                      Color(0xFF1E88E5),
+                      Color(0xFF0D47A1),
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                ),
+                child: Container(
+                  // This container re-applies the padding and alignment
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Log In',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white, // <-- Explicitly set text color to white
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          //--OR divider
+          const Row(
+            children: [
+              Expanded(child: Divider(color: Colors.grey)),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text('OR', style: TextStyle(color: Colors.grey)),
+              ),
+              Expanded(child: Divider(color: Colors.grey)),
+            ],
           ),
           const SizedBox(height: 24),
+
+          //google sign-in button
+          ElevatedButton.icon(
+            onPressed: widget.onGoogleSignIn, // Call the new callback
+            icon: Image.asset('assets/google_logo.png', height: 24),
+            label: const Text('Continue with Google'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white, // White background
+              foregroundColor: Colors.black87, // Dark text
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.0),
+                side: const BorderSide(color: Colors.grey, width: 0.5),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.normal),
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(height: 32),
 
           // Sign Up Navigation
           TextButton(
             onPressed: () => widget.onNavigate(AuthView.signup),
-            child: const Text.rich(
+            child: Text.rich(
               TextSpan(
                 text: "Don't have an account? ",
-                style: TextStyle(color: Colors.black54),
+                style: const TextStyle(color: Colors.black54),
                 children: [
                   TextSpan(
                     text: 'Sign up now',
-                    style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold),
+                    style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
                   ),
                 ],
               ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'main.dart'; // To access AuthView enum
+import 'main.dart'; // To access AuthView
 
 // --- FORGOT PASSWORD SCREEN ---
 class ForgotPasswordScreen extends StatefulWidget {
@@ -34,7 +34,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           const Text(
             'Reset Password',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -55,10 +55,47 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
           const SizedBox(height: 32),
 
-          // Send Reset Link Button
-          ElevatedButton(
-            onPressed: _submit,
-            child: const Text('Send Reset Link'),
+// --- UPDATED Send Reset Link Button ---
+          ClipRRect( // Wrap with ClipRRect for rounded corners
+            borderRadius: BorderRadius.circular(12.0),
+            child: ElevatedButton(
+              onPressed: _submit, // This is your submit function
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.zero, // Remove default padding
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                backgroundColor: Colors.transparent, // Make button transparent
+                shadowColor: Colors.transparent, // Hide default shadow
+                elevation: 2,
+              ),
+              child: Ink( // Use Ink for the gradient and splash effect
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12.0),
+                  gradient: const LinearGradient( // Your gradient
+                    colors: [
+                      Color(0xFF1E88E5), // Blue
+                      Color(0xFF0D47A1), // Darker Blue
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                ),
+                child: Container(
+                  // This container holds the text and re-applies the padding
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Send Reset Link', // <-- Updated text
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -67,7 +104,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             onPressed: () => widget.onNavigate(AuthView.login),
             child: const Text(
               'Back to Login',
-              style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold),
+              style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
             ),
           ),
         ],

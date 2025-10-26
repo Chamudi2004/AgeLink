@@ -63,6 +63,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '327469030653',
     projectId: 'agelink-f4680',
     storageBucket: 'agelink-f4680.firebasestorage.app',
+    androidClientId: '327469030653-rjqul9vt5mpnecmngf2665ilngck3u9g.apps.googleusercontent.com',
+    iosClientId: '327469030653-ucvns77jb8q23aebrf5hs8oj4dlb222d.apps.googleusercontent.com',
     iosBundleId: 'com.example.ageLink',
   );
 
