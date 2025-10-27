@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "327469030653",
+    "project_id": "agelink-f4680",
+    "storage_bucket": "agelink-f4680.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327469030653:android:9253b654f7b4d81e73b294",
+        "android_client_info": {
+          "package_name": "com.example.age_link"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "327469030653-rjqul9vt5mpnecmngf2665ilngck3u9g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.age_link",
+            "certificate_hash": "9606aa50c858fb262f3655aa2d6f38153a4ed75f"
+          }
+        },
+        {
+          "client_id": "327469030653-tr4dqemm7rvc9dknp0m2nrfnjtbk5ah7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBoDBC1NhBhvAdZ7dUeP692zqJzFdZ_PzU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "327469030653-tr4dqemm7rvc9dknp0m2nrfnjtbk5ah7.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "327469030653-ucvns77jb8q23aebrf5hs8oj4dlb222d.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.ageLink"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
