@@ -1,97 +1,137 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
+import 'medication_schedule_page.dart' show Medication;
 
-class HomeScreen extends StatelessWidget {
+
+class _TodayDose {
+  final String time; // e.g., "08:00"
+  final String name;
+  final String dosage;
+
+  _TodayDose({
+    required this.time,
+    required this.name,
+    required this.dosage,
+  });
+}
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String _currentDate = 'Loading...';
+
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentDate = _formatDate(DateTime.now());
+  }
+
+  String _formatDate(DateTime date) {
+    final dayOfWeek = _getDayOfWeek(date.weekday);
+    final month = _getMonth(date.month);
+    return '$dayOfWeek, $month ${date.day}';
+  }
+
+  String _getDayOfWeek(int weekday) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return days[weekday - 1];
+  }
+
+  String _getMonth(int month) {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return months[month - 1];
+  }
+
+
+  String _formatTime12h(String time24h) {
+    try {
+      final parts = time24h.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      final dt = DateTime(2025, 1, 1, hour, minute);
+      return TimeOfDay.fromDateTime(dt).format(context);
+    } catch (e) {
+      return time24h;
+    }
+  }
+
+
+  Widget _buildMedicationItem(_TodayDose dose) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              _formatTime12h(dose.time),
+              style: TextStyle(
+                color: Constants.darkGrey,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dose.name,
+                  style: TextStyle(
+                    color: Constants.darkGrey,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  dose.dosage,
+                  style: TextStyle(
+                    color: Constants.mediumGrey,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Icon(
+            Icons.radio_button_unchecked,
+            color: Constants.mediumGrey,
+            size: 20,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // This is the
-    // from your old home_page.dart
+    // collection path
+    final String medicationCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medications';
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Missed Medication Card
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Missed: ',
-                              style: TextStyle(
-                                color: Constants.redColor,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '8:00 AM Lisinopril.',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'No confirmation received.',
-                          style: TextStyle(
-                            color: Colors.black54,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'AgeLink lights are on.',
-                          style: TextStyle(
-                            color: Colors.black54,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      // Handle close action
-                    },
-                    child: const Icon(Icons.close, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Connect Device Button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: ElevatedButton(
               onPressed: () {
-                // Handle connect device action
+                // connect device action
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Constants.darkBlue,
@@ -106,13 +146,13 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-          // Today Medication Schedule Header
+          // TODAY MEDICATION SCHEDULE HEADER
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              'Today Medication Schedule',
+              'Today\'s Medication Schedule',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -123,7 +163,7 @@ class HomeScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              'Thursday, June 6',
+              _currentDate,
               style: TextStyle(
                 fontSize: 16,
                 color: Constants.mediumGrey,
@@ -132,7 +172,7 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Medication List
+          // MEDICATION LIST
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
@@ -149,83 +189,83 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Column(
-                children: [
-                  _buildMedicationItem('8.00 AM', 'Metformin', '1 tablet', 'Taken', Constants.greenColor, Icons.check_circle),
-                  const Divider(height: 16, thickness: 0.5, color: Colors.grey),
-                  _buildMedicationItem('8.00 AM', 'Vitamin D', '1 tablet', 'Taken', Constants.greenColor, Icons.check_circle),
-                  const Divider(height: 16, thickness: 0.5, color: Colors.grey),
-                  _buildMedicationItem('8.00 PM', 'Metformin', '1 tablet', 'Pending', Constants.orangeColor, Icons.radio_button_unchecked),
-                  const Divider(height: 16, thickness: 0.5, color: Colors.grey),
-                  _buildMedicationItem('8.00 PM', 'Amlodipine', '1 tablet', 'Pending', Constants.orangeColor, Icons.radio_button_unchecked),
-                ],
+
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _firestore.collection(medicationCollectionPath).snapshots(),
+                builder: (context, snapshot) {
+                  // Show loading spinner
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  // Show error
+                  if (snapshot.hasError) {
+                    return const Center(
+                        child: Text('Error loading schedule.'));
+                  }
+
+                  // Handle no data
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                      child: Center(
+                          child: Text("No medication scheduled for today.")),
+                    );
+                  }
+
+                  // --- Process the Data ---
+                  // 1. Convert Firestore docs to 'Medication' objects
+                  final medications = snapshot.data!.docs
+                      .map((doc) => Medication.fromFirestore(doc))
+                      .toList();
+
+                  // 2. Flatten the schedule
+                  final List<_TodayDose> todayDoses = [];
+                  for (final med in medications) {
+                    // TODO: Add logic for 'frequency'
+                    // For now, we assume all are 'Daily'
+                    if (med.frequency == 'Daily') {
+                      for (final time in med.times) {
+                        todayDoses.add(_TodayDose(
+                          time: time,
+                          name: med.name,
+                          dosage: med.dosage,
+                        ));
+                      }
+                    }
+                  }
+
+                  // 3. Sort the flattened list by time
+                  todayDoses.sort((a, b) => a.time.compareTo(b.time));
+
+
+                  // If the processed list is empty (e.g., no 'Daily' meds)
+                  if (todayDoses.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                      child: Center(
+                          child: Text("No medication scheduled for today.")),
+                    );
+                  }
+
+                  // Build the list view from the processed 'todayDoses'
+                  return Column(
+                    children: [
+                      for (int i = 0; i < todayDoses.length; i++)
+                        Column(
+                          children: [
+                            _buildMedicationItem(todayDoses[i]),
+                            if (i < todayDoses.length - 1)
+                              const Divider(height: 16, thickness: 0.5, color: Colors.grey),
+                          ],
+                        ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
           const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  // Moved this helper method here
-  Widget _buildMedicationItem(String time, String name, String dosage, String status, Color statusColor, IconData statusIcon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80, // Fixed width for time
-            child: Text(
-              time,
-              style: TextStyle(
-                color: Constants.darkGrey,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    color: Constants.darkGrey,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  dosage,
-                  style: TextStyle(
-                    color: Constants.mediumGrey,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Row(
-            children: [
-              Text(
-                status,
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                statusIcon,
-                color: statusColor,
-                size: 20,
-              ),
-            ],
-          ),
         ],
       ),
     );
