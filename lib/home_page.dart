@@ -22,14 +22,11 @@ class _HomePageState extends State<HomePage> {
     NotificationPage(), // Index 2
   ];
 
-  // 2. Updated tap handler
-  // It now needs the 'context' to be able to find the Scaffold
+
   void _onItemTapped(int index, BuildContext context) {
     if (index == 3) {
-      // If "Menu" (index 3) is tapped, open the drawer
       Scaffold.of(context).openEndDrawer();
     } else {
-      // For Home, Schedule, Notification, just change the page
       setState(() {
         _selectedIndex = index;
       });
@@ -39,10 +36,8 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 3. The drawer is added here, so it's ready to be opened
       endDrawer: const AppMenuDrawer(),
 
-      // 4. The AppBar is back to its original state (static icon)
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -79,29 +74,23 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
 
-      // 5. The body shows one of the 3 pages
       body: IndexedStack(
         index: _selectedIndex,
         children: _pages,
       ),
 
 
-      // 6. The BottomNavigationBar
-      // We wrap it in a 'Builder' to get a new 'context'
-      // This is necessary so that 'Scaffold.of(context)' in our
-      // _onItemTapped function can find the Scaffold.
+
       bottomNavigationBar: Builder(
-          builder: (context) { // This 'context' is *under* the Scaffold
+          builder: (context) {
             return BottomNavigationBar(
               backgroundColor: Colors.white,
               selectedItemColor: Constants.darkBlue,
               unselectedItemColor: Constants.mediumGrey,
               currentIndex: _selectedIndex,
-              // Pass the new 'context' to our tap handler
               onTap: (index) => _onItemTapped(index, context),
               type: BottomNavigationBarType.fixed,
 
-              // 7. The 4 items are back in the list-
               items: const <BottomNavigationBarItem>[
                 // Home
                 BottomNavigationBarItem(

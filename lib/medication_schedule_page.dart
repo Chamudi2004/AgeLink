@@ -3,12 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 
-// --- Data Model ---
+
 class Medication {
   final String id;
   final String name;
   final String dosage;
-  final List<String> times; // Stored as military time strings, e.g., ["08:00", "12:30"]
+  final List<String> times;
   final String frequency; // Daily, Weekly, Custom
 
   Medication({
@@ -42,9 +42,7 @@ class Medication {
   }
 }
 
-// --------------------------------------------------------------------------
-// 2. Medication List View (Main Schedule Screen)
-// --------------------------------------------------------------------------
+// Medication List View (Main Schedule Screen)
 
 class MedicationSchedulePage extends StatefulWidget {
   const MedicationSchedulePage({super.key});
@@ -54,18 +52,13 @@ class MedicationSchedulePage extends StatefulWidget {
 }
 
 class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
-  // Firestore setup
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  // Note: Using `__app_id` for Canvas environment if available, otherwise fallback
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // State management for selection and loading
   Medication? _selectedMedication;
 
-  // Path to the user's private medication collection
   String get _medicationCollectionPath {
-    // Correctly using the provided Firestore path format: /artifacts/{appId}/users/{userId}/medications
     return 'artifacts/$_appId/users/${_currentUser!.uid}/medications';
   }
 
@@ -100,7 +93,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
         final format = TimeOfDay.fromDateTime(dt).format(context);
         return format;
       } catch (e) {
-        return time; // Return original if parsing fails
+        return time;
       }
     }).join(', ');
   }
@@ -155,7 +148,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 100), // Account for fixed buttons
+            padding: const EdgeInsets.only(bottom: 100),
             itemCount: medications.length,
             itemBuilder: (context, index) {
               final medication = medications[index];
@@ -221,7 +214,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
         },
       ),
 
-      // Floating Action Buttons fixed at the bottom
+
       bottomSheet: Container(
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
@@ -237,7 +230,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            // EDIT Button (Also acts as Delete)
+            // EDIT Button
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: _selectedMedication != null
@@ -275,9 +268,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
   }
 }
 
-// --------------------------------------------------------------------------
 // 3. Add/Edit Medication Form
-// --------------------------------------------------------------------------
 
 class AddEditMedicationPage extends StatefulWidget {
   final Medication? medication;
@@ -294,8 +285,8 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
   final _nameController = TextEditingController();
   final _dosageController = TextEditingController();
 
-  String _frequency = 'Daily'; // Default frequency
-  List<String> _times = []; // Stores times as "HH:mm" strings (24h)
+  String _frequency = 'Daily';
+  List<String> _times = [];
 
   bool get isEditing => widget.medication != null;
 
@@ -307,7 +298,7 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
       _nameController.text = m.name;
       _dosageController.text = m.dosage;
       _frequency = m.frequency;
-      _times = List.from(m.times); // Copy list
+      _times = List.from(m.times);
     }
   }
 
@@ -324,13 +315,6 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
-      // Set to 24-hour format if needed for clearer internal storage, though not strictly necessary
-      // builder: (context, child) {
-      //   return MediaQuery(
-      //     data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
-      //     child: child!,
-      //   );
-      // },
     );
 
     if (picked != null) {
@@ -341,7 +325,7 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
       if (!_times.contains(newTime)) {
         setState(() {
           _times.add(newTime);
-          _times.sort(); // Keep times in order
+          _times.sort();
         });
       }
     }
@@ -411,7 +395,6 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
         SnackBar(content: Text(isEditing ? 'Medication updated!' : 'Medication scheduled successfully!')),
       );
 
-      // Pass 'true' back to the previous screen to signal a change was made
       Navigator.of(context).pop(true);
     } catch (e) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -551,7 +534,7 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
               ),
               const SizedBox(height: 20),
 
-              // Optional Delete Button for editing mode
+              // Delete Button for editing mode
               if (isEditing)
                 TextButton.icon(
                   icon: Icon(Icons.delete_forever, color: Constants.redColor),
@@ -584,7 +567,7 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
               style: ElevatedButton.styleFrom(backgroundColor: Constants.redColor),
               child: Text('Delete', style: TextStyle(color: Constants.white)),
               onPressed: () {
-                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pop();
                 _performDelete();
               },
             ),
@@ -607,13 +590,12 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
           .doc(widget.medication!.id)
           .delete();
 
-      // Success! Pop back to the list view
+
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${widget.medication!.name} deleted successfully!')),
       );
 
-      // Pass 'true' back to the previous screen to signal a change was made and deselect
       Navigator.of(context).pop(true);
     } catch (e) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
