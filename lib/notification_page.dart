@@ -137,7 +137,7 @@ class _NotificationPageState extends State<NotificationPage> {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   subtitle: Text(
-                    '${statusText} at ${notification.time} on ${_formatDate(notification.date)}',
+                    '$statusText at ${notification.time} on ${_formatDate(notification.date)}',
                     style: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
                   ),
                   trailing: Chip(

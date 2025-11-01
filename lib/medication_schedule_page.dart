@@ -117,7 +117,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore
             .collection(_medicationCollectionPath)
-            .where('userId', isEqualTo: _currentUser!.uid)
+            .where('userId', isEqualTo: _currentUser.uid)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {

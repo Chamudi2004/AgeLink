@@ -1,14 +1,18 @@
-import 'package:age_link/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'family_permissions_page.dart';
+import 'device_page.dart';
+import 'settings_page.dart';
+import 'help_page.dart';
+import 'edit_profile_page.dart';
 
 class AppMenuDrawer extends StatelessWidget {
   const AppMenuDrawer({super.key});
 
   final String appId = const String.fromEnvironment(
       'app_id', defaultValue: 'default-app-id');
-
 
   void _logout(BuildContext context) async {
     Navigator.of(context).pop();
@@ -20,7 +24,6 @@ class AppMenuDrawer extends StatelessWidget {
 
     // Sign out
     await FirebaseAuth.instance.signOut();
-
   }
 
   // Helper widget for menu items
@@ -44,6 +47,18 @@ class AppMenuDrawer extends StatelessWidget {
     );
   }
 
+  // Helper function to handle navigation
+  void _navigateTo(BuildContext context, Widget page) {
+    // 1. Close the drawer
+    Navigator.pop(context);
+
+    // 2. Navigate to the new page
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => page),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -52,13 +67,10 @@ class AppMenuDrawer extends StatelessWidget {
       return const Drawer(child: Center(child: Text('Not logged in.')));
     }
 
+    // UPDATED: Using the simple path we fixed before
     final userDocRef = FirebaseFirestore.instance
-        .collection('artifacts')
-        .doc(kAppId)
         .collection('users')
-        .doc(user.uid)
-        .collection('profile')
-        .doc('details');
+        .doc(user.uid);
 
     return Drawer(
       child: Container(
@@ -103,10 +115,10 @@ class AppMenuDrawer extends StatelessWidget {
                   String name = 'Loading...';
                   String email = user.email ?? 'No email';
 
-                  if (snapshot.hasData && snapshot.data!.exists) {
+                  if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
                     final data = snapshot.data!.data() as Map<String, dynamic>;
-                    name = data['name'] ?? name;
-                    email = data['email'] ?? user.email;
+                    name = data['name'] ?? 'Caregiver User'; // Use fallback
+                    email = data['email'] ?? user.email!; // Use fallback
                   } else if (snapshot.hasError) {
                     name = 'Error loading name';
                   }
@@ -148,11 +160,8 @@ class AppMenuDrawer extends StatelessWidget {
                         const SizedBox(height: 8),
                         InkWell(
                           onTap: () {
-                            // TODO: Navigate to Edit Profile Page
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Edit Profile Tapped')),
-                            );
+                            // UPDATED: Navigate to Edit Profile Page
+                            _navigateTo(context, const EditProfilePage());
                           },
                           child: const Text(
                             'Edit Profile',
@@ -174,21 +183,24 @@ class AppMenuDrawer extends StatelessWidget {
                 icon: Icons.people_outline,
                 title: 'Family & Permissions',
                 onTap: () {
-                  // TODO: Navigate
+                  // UPDATED
+                  _navigateTo(context, const FamilyPermissionsPage());
                 },
               ),
               _buildMenuItem(
                 icon: Icons.devices_other_outlined,
                 title: 'Device',
                 onTap: () {
-                  // TODO: Navigate
+                  // UPDATED
+                  _navigateTo(context, const DevicePage());
                 },
               ),
               _buildMenuItem(
                 icon: Icons.settings_outlined,
                 title: 'Settings',
                 onTap: () {
-                  // TODO: Navigate
+                  // UPDATED
+                  _navigateTo(context, const SettingsPage());
                 },
               ),
               const Padding(
@@ -199,7 +211,8 @@ class AppMenuDrawer extends StatelessWidget {
                 icon: Icons.help_outline,
                 title: 'Help',
                 onTap: () {
-                  // TODO: Navigate
+                  // UPDATED
+                  _navigateTo(context, const HelpPage());
                 },
               ),
               _buildMenuItem(
