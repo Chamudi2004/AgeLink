@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'main.dart'; // To access AuthView
+import 'main.dart';
 
-// --- LOGIN SCREEN ---
+
 class LoginScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onLogin;
   final VoidCallback onGoogleSignIn;
@@ -26,21 +26,15 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordObscured = true;
   bool _rememberMe = false;
 
-  // --- 1. ADD THIS ---
-  final _storage = const FlutterSecureStorage();
-  // -------------------
 
-  // --- 2. ADD THIS METHOD ---
-  // This runs once when the screen is first created
+  final _storage = const FlutterSecureStorage();
+
   @override
   void initState() {
     super.initState();
     _loadRememberedEmail();
   }
-  // -------------------
 
-  // --- 3. ADD THIS METHOD ---
-  // This loads the email from storage and fills the fields
   void _loadRememberedEmail() async {
     String? email = await _storage.read(key: 'remembered_email');
     if (email != null) {
@@ -50,19 +44,24 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     }
   }
-  // -------------------
 
-  // --- 4. UPDATE THIS METHOD ---
-  void _submit() {
+
+  void _submit() async {
     if (_formKey.currentState!.validate()) {
-      widget.onLogin({
+      if (_rememberMe) {
+        await _storage.write(key: 'remembered_email', value: _emailController.text);
+      } else {
+        await _storage.delete(key: 'remembered_email');
+      }
+
+      await widget.onLogin({
         'email': _emailController.text,
         'password': _passwordController.text,
-        'rememberMe': _rememberMe, // Pass the checkbox value
+        'rememberMe': _rememberMe,
       });
     }
   }
-  // -------------------
+
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           // 1. Welcome Text
-          Text(
+          const Text(
             'Welcome to AgeLink',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
@@ -113,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           // 4. Email Field
           TextFormField(
-            controller: _emailController, // Now loads saved email
+            controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(
               hintText: 'Email Address',
@@ -162,35 +161,43 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Checkbox(
-                    value: _rememberMe, // Now reflects saved state
-                    onChanged: (bool? newValue) {
-                      setState(() {
-                        _rememberMe = newValue ?? false;
-                      });
-                    },
-                  ),
-                  const Text('Remember me', style: TextStyle(color: Colors.black54)),
-                ],
+              Flexible(
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (bool? newValue) {
+                        setState(() {
+                          _rememberMe = newValue ?? false;
+                        });
+                      },
+                    ),
+                    const Flexible(
+                      child: Text('Remember me', style: TextStyle(color: Colors.black54)),
+                    ),
+                  ],
+                ),
               ),
+
+
               TextButton(
                 onPressed: () => widget.onNavigate(AuthView.forgotPassword),
-                child: Text(
+                child: const Text(
                   'Forgot Password?',
                   style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.w500),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 10),
+
+
 
           // 7. Log In Button
           ClipRRect(
             borderRadius: BorderRadius.circular(12.0),
             child: ElevatedButton(
-              onPressed: _submit, // This now passes the rememberMe value
+              onPressed: _submit,
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(
@@ -227,23 +234,39 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 35),
 
           // 8. Sign Up Navigation
-          TextButton(
-            onPressed: () => widget.onNavigate(AuthView.signup),
-            child: Text.rich(
-              TextSpan(
-                text: "Don't have an account? ",
-                style: const TextStyle(color: Colors.black54),
-                children: [
-                  TextSpan(
-                    text: 'Sign up now',
-                    style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
-                  ),
-                ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Non-clickable part
+              const Text(
+                "Don't have an account? ",
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 14,
+                ),
               ),
-            ),
+              // Clickable part
+              InkWell(
+                onTap: () {
+                  widget.onNavigate(AuthView.signup);
+                },
+                borderRadius: BorderRadius.circular(4.0),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0),
+                  child: Text(
+                    'Sign up now',
+                    style: TextStyle(
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
