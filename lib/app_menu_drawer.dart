@@ -160,8 +160,12 @@ class AppMenuDrawer extends StatelessWidget {
                         const SizedBox(height: 8),
                         InkWell(
                           onTap: () {
-                            // UPDATED: Navigate to Edit Profile Page
-                            _navigateTo(context, const EditProfilePage());
+                            Navigator.of(context).pop(); // Close the drawer
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfilePage(),
+                              ),
+                            );
                           },
                           child: const Text(
                             'Edit Profile',
