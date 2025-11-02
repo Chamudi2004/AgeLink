@@ -3,10 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'medication_schedule_page.dart' show Medication;
+import 'pair_device_page.dart';
 
 
 class _TodayDose {
-  final String time; // e.g., "08:00"
+  final String time;
   final String name;
   final String dosage;
 
@@ -120,7 +121,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // collection path
     final String medicationCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medications';
 
     return SingleChildScrollView(
@@ -129,23 +129,56 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
-              onPressed: () {
-                // connect device action
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Constants.darkBlue,
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12.0),
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const PairDevicePage(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  elevation: 2,
                 ),
-              ),
-              child: const Text(
-                'Connect Device',
-                style: TextStyle(fontSize: 18, color: Colors.white),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12.0),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF1E88E5),
+                        Color(0xFF0D47A1),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                  ),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Connect Device',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
+
           const SizedBox(height: 16),
 
           // TODAY MEDICATION SCHEDULE HEADER
@@ -213,7 +246,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // --- Process the Data ---
                   // 1. Convert Firestore docs to 'Medication' objects
                   final medications = snapshot.data!.docs
                       .map((doc) => Medication.fromFirestore(doc))
@@ -223,7 +255,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   final List<_TodayDose> todayDoses = [];
                   for (final med in medications) {
                     // TODO: Add logic for 'frequency'
-                    // For now, we assume all are 'Daily'
                     if (med.frequency == 'Daily') {
                       for (final time in med.times) {
                         todayDoses.add(_TodayDose(

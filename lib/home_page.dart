@@ -4,6 +4,7 @@ import 'home_screen.dart';
 import 'medication_schedule_page.dart';
 import 'notification_page.dart';
 import 'app_menu_drawer.dart';
+import 'gradient_scaffold.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,13 +16,11 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
-  // 1. The list of pages for the body (only 3 pages)
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),       // Index 0
     MedicationSchedulePage(),     // Index 1
     NotificationPage(), // Index 2
   ];
-
 
   void _onItemTapped(int index, BuildContext context) {
     if (index == 3) {
@@ -35,11 +34,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return GradientScaffold(
       endDrawer: const AppMenuDrawer(),
 
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leadingWidth: 120,
         leading: Padding(
@@ -51,7 +50,7 @@ class _HomePageState extends State<HomePage> {
               child: Text(
                 'Agelink',
                 style: TextStyle(
-                    color: Constants.darkBlue,
+                    color: Constants.darkblue,
                     fontWeight: FontWeight.bold,
                     fontSize: 18),
               ),
@@ -66,7 +65,7 @@ class _HomePageState extends State<HomePage> {
               radius: 20,
               child: Icon(
                 Icons.person,
-                color: Constants.darkBlue,
+                color: Constants.darkblue,
                 size: 24,
               ),
             ),
@@ -79,13 +78,12 @@ class _HomePageState extends State<HomePage> {
         children: _pages,
       ),
 
-
-
       bottomNavigationBar: Builder(
           builder: (context) {
             return BottomNavigationBar(
               backgroundColor: Colors.white,
-              selectedItemColor: Constants.darkBlue,
+              elevation: 0,
+              selectedItemColor: Constants.darkblue,
               unselectedItemColor: Constants.mediumGrey,
               currentIndex: _selectedIndex,
               onTap: (index) => _onItemTapped(index, context),

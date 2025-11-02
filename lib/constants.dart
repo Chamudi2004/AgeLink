@@ -6,7 +6,6 @@ const String kInitialAuthToken = String.fromEnvironment('initial_auth_token', de
 
 
 class Constants {
-  static Color darkBlue = const Color(0xFF2196F3);
   static Color lightBlue = const Color(0xFFE3F2FD);
   static Color redColor = const Color(0xFFF44336);
   static Color greenColor = const Color(0xFF4CAF50);
