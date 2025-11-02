@@ -3,6 +3,30 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 
+const kPrimaryGradient = LinearGradient(
+  colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+
+const kOrangeGradient = LinearGradient(
+  colors: [Color(0xFFFFA726), Color(0xFFF57C00)], // Orange gradient
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+
+const kGreenGradient = LinearGradient(
+  colors: [Color(0xFF66BB6A), Color(0xFF388E3C)], // Green gradient
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+
+const kRedGradient = LinearGradient(
+  colors: [Color(0xFFEF5350), Color(0xFFD32F2F)], // Red gradient
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+
 
 class Medication {
   final String id;
@@ -106,164 +130,211 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
     }
   }
 
+  Widget _buildGradientButton({
+    required VoidCallback? onPressed,
+    required String text,
+    IconData? icon,
+    required Gradient gradient,
+    double verticalPadding = 16.0,
+    FontWeight fontWeight = FontWeight.bold,
+    double fontSize = 16,
+  }) {
+    final bool isEnabled = onPressed != null;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12.0),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          elevation: 5,
+        ),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: isEnabled
+                ? gradient
+                : LinearGradient( // Disabled gradient
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: verticalPadding),
+            alignment: Alignment.center,
+            child: (icon != null)
+                ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  text,
+                  style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize),
+                ),
+              ],
+            )
+                : Text(
+              text,
+              style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_currentUser == null) {
       return const Center(child: Text('Please log in to see your schedule.'));
     }
+    return Column(
+      children: [
+        // 1. The list, inside an Expanded to fill available space
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection(_medicationCollectionPath)
+                .where('userId', isEqualTo: _currentUser!.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error loading data: ${snapshot.error}'));
+              }
 
-    return Scaffold(
-      backgroundColor: Constants.white,
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection(_medicationCollectionPath)
-            .where('userId', isEqualTo: _currentUser.uid)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading data: ${snapshot.error}'));
-          }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+              final medications = snapshot.data!.docs.map((doc) => Medication.fromFirestore(doc)).toList();
 
-          final medications = snapshot.data!.docs.map((doc) => Medication.fromFirestore(doc)).toList();
-
-          if (medications.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.calendar_month, size: 80, color: Constants.mediumGrey),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No medications scheduled.\nTap "Add New" below to start!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 18, color: Constants.mediumGrey),
+              if (medications.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.calendar_month, size: 80, color: Constants.darkblue),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No medications scheduled.\nTap "Add New" below to start!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 18, color: Constants.mediumGrey),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }
+                );
+              }
 
-          return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 100),
-            itemCount: medications.length,
-            itemBuilder: (context, index) {
-              final medication = medications[index];
-              final isSelected = _selectedMedication?.id == medication.id;
+              // The list view for the medications
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 16, left: 16, right: 16, top: 16), // Added padding
+                itemCount: medications.length,
+                itemBuilder: (context, index) {
+                  final medication = medications[index];
+                  final isSelected = _selectedMedication?.id == medication.id;
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Card(
-                  elevation: isSelected ? 4 : 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: isSelected ? Constants.darkBlue : Constants.lightBlue,
-                      width: isSelected ? 2 : 1,
-                    ),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    title: Text(
-                      medication.name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Constants.darkBlue,
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Card(
+                      elevation: isSelected ? 4 : 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: isSelected ? Constants.darkblue : Constants.lightBlue,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                        title: Text(
+                          medication.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Constants.darkblue,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text('Dosage: ${medication.dosage}', style: TextStyle(color: Constants.darkGrey)),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Times: ${_formatTimes(medication.times)}',
+                              style: TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: Constants.mediumGrey,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Frequency: ${medication.frequency}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Constants.mediumGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle, color: Constants.darkblue)
+                            : Icon(Icons.radio_button_unchecked, color: Constants.mediumGrey),
+                        onTap: () {
+                          setState(() {
+                            _selectedMedication = isSelected ? null : medication;
+                          });
+                        },
                       ),
                     ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        Text('Dosage: ${medication.dosage}', style: TextStyle(color: Constants.darkGrey)),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Times: ${_formatTimes(medication.times)}',
-                          style: TextStyle(
-                            fontStyle: FontStyle.italic,
-                            color: Constants.mediumGrey,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Frequency: ${medication.frequency}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Constants.mediumGrey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    trailing: isSelected
-                        ? Icon(Icons.check_circle, color: Constants.darkBlue)
-                        : Icon(Icons.radio_button_unchecked, color: Constants.mediumGrey),
-                    onTap: () {
-                      setState(() {
-                        _selectedMedication = isSelected ? null : medication;
-                      });
-                    },
-                  ),
-                ),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
-
-
-      bottomSheet: Container(
-        padding: const EdgeInsets.all(16.0),
-        decoration: BoxDecoration(
-          color: Constants.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 10,
-              spreadRadius: 5,
-            ),
-          ],
+          ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            // EDIT Button
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _selectedMedication != null
-                    ? () => _navigateToAddEdit(medication: _selectedMedication)
-                    : null,
-                icon: Icon(Icons.edit, color: Constants.white),
-                label: Text('Edit', style: TextStyle(color: Constants.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedMedication != null ? Constants.orangeColor : Constants.mediumGrey,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 5,
+
+        // 2. The "bottomSheet" content, now a Container at the bottom
+        Container(
+          padding: const EdgeInsets.all(20.0),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // EDIT Button
+              Expanded(
+                child: _buildGradientButton(
+                  onPressed: _selectedMedication != null
+                      ? () => _navigateToAddEdit(medication: _selectedMedication)
+                      : null,
+                  text: 'Edit',
+                  icon: Icons.edit,
+                  gradient: kOrangeGradient,
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            // ADD NEW Button
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _navigateToAddEdit(),
-                icon: Icon(Icons.add, color: Constants.white),
-                label: Text('Add New', style: TextStyle(color: Constants.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Constants.darkBlue,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 5,
+              const SizedBox(width: 12),
+              // ADD NEW Button
+              Expanded(
+                child: _buildGradientButton(
+                  onPressed: () => _navigateToAddEdit(),
+                  text: 'Add New',
+                  icon: Icons.add,
+                  gradient: kPrimaryGradient,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -307,6 +378,66 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
     _nameController.dispose();
     _dosageController.dispose();
     super.dispose();
+  }
+
+  Widget _buildGradientButton({
+    required VoidCallback? onPressed,
+    required String text,
+    IconData? icon,
+    required Gradient gradient,
+    double verticalPadding = 16.0,
+    FontWeight fontWeight = FontWeight.bold,
+    double fontSize = 16,
+  }) {
+    final bool isEnabled = onPressed != null;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12.0),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          elevation: 5,
+        ),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: isEnabled
+                ? gradient
+                : LinearGradient( // Disabled gradient
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: verticalPadding),
+            alignment: Alignment.center,
+            child: (icon != null)
+                ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  text,
+                  style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize),
+                ),
+              ],
+            )
+                : Text(
+              text,
+              style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // --- Time Management ---
@@ -410,138 +541,150 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
       appBar: AppBar(
         title: Text(
           isEditing ? 'Edit Medication' : 'Add New Schedule',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Constants.darkBlue),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Constants.darkblue),
         ),
         backgroundColor: Colors.white,
         elevation: 0.5,
-        iconTheme: IconThemeData(color: Constants.darkBlue),
+        iconTheme: IconThemeData(color: Constants.darkblue),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // --- 1. Medicine Name ---
-              _buildInputField(
-                controller: _nameController,
-                label: 'Medicine Name',
-                hint: 'e.g., Tylenol, Insulin',
-              ),
-              const SizedBox(height: 20),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white,
+              Color(0xFFBCD8FF),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // --- 1. Medicine Name ---
+                _buildInputField(
+                  controller: _nameController,
+                  label: 'Medicine Name',
+                  hint: 'e.g., Tylenol, Insulin',
+                ),
+                const SizedBox(height: 20),
 
-              // --- 2. Dosage ---
-              _buildInputField(
-                controller: _dosageController,
-                label: 'Dosage',
-                hint: 'e.g., 500mg (1 tablet)',
-              ),
-              const SizedBox(height: 20),
+                // --- 2. Dosage ---
+                _buildInputField(
+                  controller: _dosageController,
+                  label: 'Dosage',
+                  hint: 'e.g., 500mg (1 tablet)',
+                ),
+                const SizedBox(height: 20),
 
-              // --- 3. Frequency Selector (Radio Buttons) ---
-              Text('Frequency', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-              const SizedBox(height: 8),
-              Row(
-                children: ['Daily', 'Weekly', 'Custom'].map((String value) {
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        label: Text(value),
-                        selected: _frequency == value,
-                        onSelected: (bool selected) {
-                          if (selected) {
-                            setState(() {
-                              _frequency = value;
-                            });
-                          }
-                        },
-                        selectedColor: Constants.darkBlue,
-                        backgroundColor: Constants.lightBlue,
-                        labelStyle: TextStyle(
-                          color: _frequency == value ? Constants.white : Constants.darkGrey,
-                          fontWeight: FontWeight.w600,
+                // --- 3. Frequency Selector (Radio Buttons) ---
+                Text('Frequency', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Constants.darkblue)),
+                const SizedBox(height: 8),
+                Row(
+                  children: ['Daily', 'Weekly', 'Custom'].map((String value) {
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(value),
+                          selected: _frequency == value,
+                          onSelected: (bool selected) {
+                            if (selected) {
+                              setState(() {
+                                _frequency = value;
+                              });
+                            }
+                          },
+                          selectedColor: Constants.gradiantBlue,
+                          backgroundColor: Constants.white,
+                          labelStyle: TextStyle(
+                            color: _frequency == value ? Constants.darkblue : Constants.darkGrey,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-
-              // --- 4. Time(s) Input and Chips ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Time(s)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-                  ElevatedButton.icon(
-                    onPressed: _selectTime,
-                    icon: Icon(Icons.add, size: 18, color: Constants.white),
-                    label: Text('Add Time', style: TextStyle(color: Constants.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Constants.greenColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 2,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              // Time Chips Display
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Constants.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Constants.lightBlue, width: 1),
-                ),
-                child: _times.isEmpty
-                    ? Text('No times selected.', style: TextStyle(color: Constants.mediumGrey))
-                    : Wrap(
-                  spacing: 8.0,
-                  runSpacing: 4.0,
-                  children: _times.map((time) {
-                    return Chip(
-                      backgroundColor: Constants.lightBlue.withOpacity(0.5),
-                      label: Text(
-                        _formatTime12h(time),
-                        style: TextStyle(fontWeight: FontWeight.w600, color: Constants.darkBlue),
-                      ),
-                      deleteIcon: Icon(Icons.close, size: 18, color: Constants.darkBlue),
-                      onDeleted: () => _removeTime(time),
                     );
                   }).toList(),
                 ),
-              ),
+                const SizedBox(height: 20),
 
-              const SizedBox(height: 40),
+                // --- 4. Time(s) Input and Chips ---
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Time(s)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
+                    // --- (UPDATED "ADD TIME" BUTTON) ---
+                    SizedBox(
+                      width: 140, // Give it a specific width
+                      child: _buildGradientButton(
+                        onPressed: _selectTime,
+                        text: 'Add Time',
+                        icon: Icons.add,
+                        gradient: kGreenGradient, // Use green gradient
+                        fontSize: 16, // Standard font size
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Time Chips Display
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Constants.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Constants.darkblue, width: 1),
+                  ),
+                  child: _times.isEmpty
+                      ? Text('No times selected.', style: TextStyle(color: Constants.mediumGrey))
+                      : Wrap(
+                    spacing: 8.0,
+                    runSpacing: 4.0,
+                    children: _times.map((time) {
+                      return Chip(
+                        backgroundColor: Constants.lightBlue.withOpacity(0.5),
+                        label: Text(
+                          _formatTime12h(time),
+                          style: TextStyle(fontWeight: FontWeight.w600, color: Constants.darkblue),
+                        ),
+                        deleteIcon: Icon(Icons.close, size: 18, color: Constants.darkblue),
+                        onDeleted: () => _removeTime(time),
+                      );
+                    }).toList(),
+                  ),
+                ),
 
-              // --- 5. Schedule Button ---
-              ElevatedButton(
-                onPressed: _saveMedication,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Constants.darkBlue,
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 5,
-                ),
-                child: Text(
-                  isEditing ? 'UPDATE SCHEDULE' : 'SCHEDULE MEDICATION',
-                  style: TextStyle(fontSize: 18, color: Constants.white, fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 40),
 
-              // Delete Button for editing mode
-              if (isEditing)
-                TextButton.icon(
-                  icon: Icon(Icons.delete_forever, color: Constants.redColor),
-                  label: Text('Delete Medication', style: TextStyle(color: Constants.redColor)),
-                  onPressed: () => _showDeleteConfirmation(context),
+                // --- 5. (UPDATED "SCHEDULE" BUTTON) ---
+                _buildGradientButton(
+                  onPressed: _saveMedication,
+                  text: isEditing ? 'Update Schedule' : 'Schedule Medication',
+                  gradient: kPrimaryGradient, // Use primary blue gradient
+                  fontSize: 18, // Make this one a bit bigger as it's the main action
+                  fontWeight: FontWeight.w900,
                 ),
-            ],
+                const SizedBox(height: 20),
+
+                // Delete Button for editing mode
+                if (isEditing)
+                // --- (UPDATED "DELETE" BUTTON) ---
+                  _buildGradientButton(
+                    onPressed: () => _showDeleteConfirmation(context),
+                    text: 'Delete Medication',
+                    icon: Icons.delete_forever,
+                    gradient: kRedGradient, // Use red gradient
+                    fontWeight: FontWeight.normal, // Make it less prominent
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -563,13 +706,34 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
                 Navigator.of(context).pop();
               },
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Constants.redColor),
-              child: Text('Delete', style: TextStyle(color: Constants.white)),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _performDelete();
-              },
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12.0),
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _performDelete();
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                ),
+                child: Ink(
+                  decoration: const BoxDecoration(
+                    gradient: kRedGradient, // Use red gradient
+                    borderRadius: BorderRadius.all(Radius.circular(12.0)),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Delete',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         );
@@ -628,15 +792,15 @@ class _AddEditMedicationPageState extends State<AddEditMedicationPage> {
             contentPadding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 16.0),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.0),
-              borderSide: BorderSide(color: Constants.lightBlue, width: 1),
+              borderSide: BorderSide(color: Constants.darkblue, width: 1),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.0),
-              borderSide: BorderSide(color: Constants.lightBlue, width: 1),
+              borderSide: BorderSide(color: Constants.darkblue, width: 1),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.0),
-              borderSide: BorderSide(color: Constants.darkBlue, width: 2),
+              borderSide: BorderSide(color: Constants.darkblue, width: 2),
             ),
           ),
           validator: (value) {
