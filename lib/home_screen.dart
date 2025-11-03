@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
-import 'medication_schedule_page.dart' show Medication;
+// import 'medication_schedule_page.dart'; // No longer needed
 import 'pair_device_page.dart';
+// We need to import this to get the gradient button
+import 'medication_schedule_page.dart' show kPrimaryGradient;
 
 
+// Helper class for today's doses
 class _TodayDose {
-  final String time;
+  final String time; // e.g., "08:00"
   final String name;
   final String dosage;
 
@@ -28,10 +31,51 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _currentDate = 'Loading...';
 
-
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
+
+  // --- NEW: Reusable Gradient Button ---
+  Widget _buildGradientButton({
+    required VoidCallback? onPressed,
+    required String text,
+    IconData? icon,
+    required Gradient gradient,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12.0),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+        ),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            alignment: Alignment.center,
+            child: (icon != null)
+                ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ],
+            )
+                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -55,7 +99,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return months[month - 1];
   }
 
-
   String _formatTime12h(String time24h) {
     try {
       final parts = time24h.split(':');
@@ -67,7 +110,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return time24h;
     }
   }
-
 
   Widget _buildMedicationItem(_TodayDose dose) {
     return Padding(
@@ -108,7 +150,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-
           Icon(
             Icons.radio_button_unchecked,
             color: Constants.mediumGrey,
@@ -121,64 +162,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String medicationCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medications';
+    // --- UPDATED: New collection path ---
+    final String schedulesCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // --- UPDATED: Gradient Button ---
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PairDevicePage(),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.0),
+            child: _buildGradientButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PairDevicePage(),
                   ),
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  elevation: 2,
-                ),
-                child: Ink(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12.0),
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF1E88E5),
-                        Color(0xFF0D47A1),
-                      ],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                  ),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'Connect Device',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+                );
+              },
+              text: 'Connect Device',
+              icon: Icons.device_hub, // Example icon
+              gradient: kPrimaryGradient,
             ),
           ),
-
           const SizedBox(height: 16),
 
           // TODAY MEDICATION SCHEDULE HEADER
@@ -205,13 +212,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // MEDICATION LIST
+          // --- UPDATED: MEDICATION LIST ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Colors.white, // This white card is correct
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
@@ -222,55 +229,59 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-
+              // --- UPDATED: StreamBuilder for new logic ---
               child: StreamBuilder<QuerySnapshot>(
-                stream: _firestore.collection(medicationCollectionPath).snapshots(),
+                stream: _firestore
+                    .collection(schedulesCollectionPath)
+                    .where('isActive', isEqualTo: true) // Get the active schedule
+                    .limit(1)
+                    .snapshots(),
                 builder: (context, snapshot) {
-                  // Show loading spinner
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-
-                  // Show error
                   if (snapshot.hasError) {
                     return const Center(
                         child: Text('Error loading schedule.'));
                   }
-
-                  // Handle no data
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16.0),
                       child: Center(
-                          child: Text("No medication scheduled for today.")),
+                          child: Text("No active medication schedule found.")),
                     );
                   }
 
-                  // 1. Convert Firestore docs to 'Medication' objects
-                  final medications = snapshot.data!.docs
-                      .map((doc) => Medication.fromFirestore(doc))
-                      .toList();
+                  // --- Process the Data from the active schedule ---
+                  final scheduleDoc = snapshot.data!.docs.first;
+                  final medications = List<Map<String, dynamic>>.from(scheduleDoc.get('medications') ?? []);
 
-                  // 2. Flatten the schedule
+                  if (medications.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                      child: Center(
+                          child: Text("Your schedule is empty.")),
+                    );
+                  }
+
+                  // --- Flatten the schedule ---
                   final List<_TodayDose> todayDoses = [];
                   for (final med in medications) {
-                    // TODO: Add logic for 'frequency'
-                    if (med.frequency == 'Daily') {
-                      for (final time in med.times) {
-                        todayDoses.add(_TodayDose(
-                          time: time,
-                          name: med.name,
-                          dosage: med.dosage,
-                        ));
-                      }
+                    // TODO: Add logic for 'frequency' (e.g., check if today is the right day)
+                    // For now, we assume all are 'Daily'
+                    final times = List<String>.from(med['times'] ?? []);
+                    for (final time in times) {
+                      todayDoses.add(_TodayDose(
+                        time: time,
+                        name: med['name'] ?? 'N/A',
+                        dosage: med['dosage'] ?? 'N/A',
+                      ));
                     }
                   }
 
-                  // 3. Sort the flattened list by time
+                  // Sort the list by time
                   todayDoses.sort((a, b) => a.time.compareTo(b.time));
 
-
-                  // If the processed list is empty (e.g., no 'Daily' meds)
                   if (todayDoses.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16.0),
@@ -279,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // Build the list view from the processed 'todayDoses'
+                  // Build the list view
                   return Column(
                     children: [
                       for (int i = 0; i < todayDoses.length; i++)
