@@ -56,23 +56,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           const SizedBox(height: 32),
 
 // --- UPDATED Send Reset Link Button ---
-          ClipRRect( // Wrap with ClipRRect for rounded corners
+          ClipRRect(
             borderRadius: BorderRadius.circular(12.0),
             child: ElevatedButton(
-              onPressed: _submit, // This is your submit function
+              onPressed: _submit,
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero, // Remove default padding
+                padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
                 ),
-                backgroundColor: Colors.transparent, // Make button transparent
-                shadowColor: Colors.transparent, // Hide default shadow
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
                 elevation: 2,
               ),
-              child: Ink( // Use Ink for the gradient and splash effect
+              child: Ink(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12.0),
-                  gradient: const LinearGradient( // Your gradient
+                  gradient: const LinearGradient(
                     colors: [
                       Color(0xFF1E88E5), // Blue
                       Color(0xFF0D47A1), // Darker Blue
@@ -82,11 +82,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                 ),
                 child: Container(
-                  // This container holds the text and re-applies the padding
                   padding: const EdgeInsets.symmetric(vertical: 16.0),
                   alignment: Alignment.center,
                   child: const Text(
-                    'Send Reset Link', // <-- Updated text
+                    'Send Reset Link',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

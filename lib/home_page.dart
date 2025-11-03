@@ -4,6 +4,7 @@ import 'home_screen.dart';
 import 'medication_schedule_page.dart';
 import 'notification_page.dart';
 import 'app_menu_drawer.dart';
+import 'gradient_scaffold.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,21 +16,16 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
-  // 1. The list of pages for the body (only 3 pages)
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),       // Index 0
     MedicationSchedulePage(),     // Index 1
     NotificationPage(), // Index 2
   ];
 
-  // 2. Updated tap handler
-  // It now needs the 'context' to be able to find the Scaffold
   void _onItemTapped(int index, BuildContext context) {
     if (index == 3) {
-      // If "Menu" (index 3) is tapped, open the drawer
       Scaffold.of(context).openEndDrawer();
     } else {
-      // For Home, Schedule, Notification, just change the page
       setState(() {
         _selectedIndex = index;
       });
@@ -38,13 +34,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // 3. The drawer is added here, so it's ready to be opened
+    return GradientScaffold(
       endDrawer: const AppMenuDrawer(),
 
-      // 4. The AppBar is back to its original state (static icon)
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leadingWidth: 120,
         leading: Padding(
@@ -56,7 +50,7 @@ class _HomePageState extends State<HomePage> {
               child: Text(
                 'Agelink',
                 style: TextStyle(
-                    color: Constants.darkBlue,
+                    color: Constants.darkblue,
                     fontWeight: FontWeight.bold,
                     fontSize: 18),
               ),
@@ -71,7 +65,7 @@ class _HomePageState extends State<HomePage> {
               radius: 20,
               child: Icon(
                 Icons.person,
-                color: Constants.darkBlue,
+                color: Constants.darkblue,
                 size: 24,
               ),
             ),
@@ -79,29 +73,22 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
 
-      // 5. The body shows one of the 3 pages
       body: IndexedStack(
         index: _selectedIndex,
         children: _pages,
       ),
 
-
-      // 6. The BottomNavigationBar
-      // We wrap it in a 'Builder' to get a new 'context'
-      // This is necessary so that 'Scaffold.of(context)' in our
-      // _onItemTapped function can find the Scaffold.
       bottomNavigationBar: Builder(
-          builder: (context) { // This 'context' is *under* the Scaffold
+          builder: (context) {
             return BottomNavigationBar(
               backgroundColor: Colors.white,
-              selectedItemColor: Constants.darkBlue,
+              elevation: 0,
+              selectedItemColor: Constants.darkblue,
               unselectedItemColor: Constants.mediumGrey,
               currentIndex: _selectedIndex,
-              // Pass the new 'context' to our tap handler
               onTap: (index) => _onItemTapped(index, context),
               type: BottomNavigationBarType.fixed,
 
-              // 7. The 4 items are back in the list-
               items: const <BottomNavigationBarItem>[
                 // Home
                 BottomNavigationBarItem(

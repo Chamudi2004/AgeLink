@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'main.dart'; // To access AuthView
+import 'main.dart';
 
-// --- SIGN UP SCREEN ---
+
 class SignUpScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onSignUp;
   final Function(AuthView) onNavigate;
@@ -135,38 +135,37 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ),
           const SizedBox(height: 32),
 
-// --- UPDATED Sign Up Button ---
-          ClipRRect( // Wrap with ClipRRect for rounded corners
+
+          ClipRRect(
             borderRadius: BorderRadius.circular(12.0),
             child: ElevatedButton(
-              onPressed: _submit, // This is your submit function
+              onPressed: _submit,
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero, // Remove default padding
+                padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
                 ),
-                backgroundColor: Colors.transparent, // Make button transparent
-                shadowColor: Colors.transparent, // Hide default shadow
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
                 elevation: 2,
               ),
-              child: Ink( // Use Ink for the gradient and splash effect
+              child: Ink(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12.0),
-                  gradient: const LinearGradient( // Your gradient
+                  gradient: const LinearGradient(
                     colors: [
-                      Color(0xFF1E88E5), // Blue
-                      Color(0xFF0D47A1), // Darker Blue
+                      Color(0xFF1E88E5),
+                      Color(0xFF0D47A1),
                     ],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   ),
                 ),
                 child: Container(
-                  // This container holds the text and re-applies the padding
                   padding: const EdgeInsets.symmetric(vertical: 16.0),
                   alignment: Alignment.center,
                   child: const Text(
-                    'Sign Up', // <-- Updated text
+                    'Sign Up',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -183,12 +182,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Non-clickable part
           const Text(
             'Already have an account? ',
-            style: TextStyle(color: Colors.black54, fontSize: 14), // Added font size for consistency
+            style: TextStyle(color: Colors.black54, fontSize: 14),
           ),
-          // Clickable part (InkWell wrapped around Text)
           InkWell(
             onTap: () {
               widget.onNavigate(AuthView.login);
@@ -201,7 +198,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 style: TextStyle(
                   color: Theme.of(context).primaryColor,
                   fontWeight: FontWeight.bold,
-                  fontSize: 14, // Consistent font size
+                  fontSize: 14,
                 ),
               ),
             ),

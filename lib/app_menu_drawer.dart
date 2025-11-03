@@ -1,7 +1,12 @@
-import 'package:age_link/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'family_permissions_page.dart';
+import 'device_page.dart';
+import 'settings_page.dart';
+import 'help_page.dart';
+import 'edit_profile_page.dart';
 
 class AppMenuDrawer extends StatelessWidget {
   const AppMenuDrawer({super.key});
@@ -9,9 +14,7 @@ class AppMenuDrawer extends StatelessWidget {
   final String appId = const String.fromEnvironment(
       'app_id', defaultValue: 'default-app-id');
 
-  // Function to handle logging out (moved from old menu.dart)
   void _logout(BuildContext context) async {
-    // Close the drawer first
     Navigator.of(context).pop();
 
     // Show a message
@@ -21,8 +24,6 @@ class AppMenuDrawer extends StatelessWidget {
 
     // Sign out
     await FirebaseAuth.instance.signOut();
-
-    // main.dart's StreamBuilder will handle navigation to LoginScreen
   }
 
   // Helper widget for menu items
@@ -32,7 +33,7 @@ class AppMenuDrawer extends StatelessWidget {
     required VoidCallback onTap,
     Color? color,
   }) {
-    final itemColor = color ?? Colors.black87; // Default color
+    final itemColor = color ?? Colors.black87;
 
     return ListTile(
       leading: Icon(icon, color: itemColor),
@@ -46,34 +47,38 @@ class AppMenuDrawer extends StatelessWidget {
     );
   }
 
+  // Helper function to handle navigation
+  void _navigateTo(BuildContext context, Widget page) {
+    // 1. Close the drawer
+    Navigator.pop(context);
+
+    // 2. Navigate to the new page
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => page),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    // Safety check, though the drawer shouldn't be reachable if user is null
     if (user == null) {
       return const Drawer(child: Center(child: Text('Not logged in.')));
     }
 
-    // --- This is the same Firebase logic from your old menu.dart
-    // It gets the 'name' from your signup_screen.dart
+    // UPDATED: Using the simple path we fixed before
     final userDocRef = FirebaseFirestore.instance
-        .collection('artifacts')
-        .doc(kAppId) // Assuming appId is in scope
         .collection('users')
-        .doc(user.uid)
-        .collection('profile') // The required collection
-        .doc('details');
-    // --- End Firebase logic ---
+        .doc(user.uid);
 
     return Drawer(
       child: Container(
-        // Gradient background from your image
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFFE6F0FF), // Lighter blue
-              Color(0xFFF7FAFF), // Fading to very light blue/white
+              Color(0xFFE6F0FF),
+              Color(0xFFF7FAFF),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -83,21 +88,19 @@ class AppMenuDrawer extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Header with Logo and Close Button
+              //1. Header section
               Padding(
                 padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 8.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Your Logo (update path if needed)
                     Image.asset(
                       'assets/agelink_logo.png',
-                      height: 24, // Adjusted for drawer size
+                      height: 24,
                     ),
                     IconButton(
                       icon: const Icon(Icons.close, color: Color(0xFF0D47A1)),
                       onPressed: () {
-                        // Closes the drawer
                         Navigator.of(context).pop();
                       },
                     ),
@@ -105,19 +108,17 @@ class AppMenuDrawer extends StatelessWidget {
                 ),
               ),
 
-              // 2. Profile Section (using your StreamBuilder)
+              // 2. Profile Section
               StreamBuilder<DocumentSnapshot>(
                 stream: userDocRef.snapshots(),
                 builder: (context, snapshot) {
-                  // Default placeholders
                   String name = 'Loading...';
                   String email = user.email ?? 'No email';
 
-                  if (snapshot.hasData && snapshot.data!.exists) {
+                  if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
                     final data = snapshot.data!.data() as Map<String, dynamic>;
-                    // This pulls the 'name' field you saved during sign up
-                    name = data['name'] ?? name;
-                    email = data['email'] ?? user.email;
+                    name = data['name'] ?? 'Caregiver User'; // Use fallback
+                    email = data['email'] ?? user.email!; // Use fallback
                   } else if (snapshot.hasError) {
                     name = 'Error loading name';
                   }
@@ -149,7 +150,6 @@ class AppMenuDrawer extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        // Email (from Firebase Auth or Firestore)
                         Text(
                           email,
                           style: const TextStyle(
@@ -158,13 +158,13 @@ class AppMenuDrawer extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        // Edit Profile Text
                         InkWell(
                           onTap: () {
-                            // TODO: Navigate to Edit Profile Page
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Edit Profile Tapped')),
+                            Navigator.of(context).pop(); // Close the drawer
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfilePage(),
+                              ),
                             );
                           },
                           child: const Text(
@@ -187,21 +187,24 @@ class AppMenuDrawer extends StatelessWidget {
                 icon: Icons.people_outline,
                 title: 'Family & Permissions',
                 onTap: () {
-                  // TODO: Navigate
+                  // UPDATED
+                  _navigateTo(context, const FamilyPermissionsPage());
                 },
               ),
               _buildMenuItem(
                 icon: Icons.devices_other_outlined,
                 title: 'Device',
                 onTap: () {
-                  // TODO: Navigate
+                  // UPDATED
+                  _navigateTo(context, const DevicePage());
                 },
               ),
               _buildMenuItem(
                 icon: Icons.settings_outlined,
                 title: 'Settings',
                 onTap: () {
-                  // TODO: Navigate
+                  // UPDATED
+                  _navigateTo(context, const SettingsPage());
                 },
               ),
               const Padding(
@@ -212,13 +215,14 @@ class AppMenuDrawer extends StatelessWidget {
                 icon: Icons.help_outline,
                 title: 'Help',
                 onTap: () {
-                  // TODO: Navigate
+                  // UPDATED
+                  _navigateTo(context, const HelpPage());
                 },
               ),
               _buildMenuItem(
                 icon: Icons.logout,
                 title: 'Log Out',
-                color: Colors.red, // Red color for logout
+                color: Colors.red,
                 onTap: () => _logout(context),
               ),
             ],
