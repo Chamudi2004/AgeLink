@@ -1,10 +1,19 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; // <-- THIS WAS THE MISSING LINE
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'constants.dart';
+import 'gradient_scaffold.dart';
+
+// --- (Gradient constant) ---
+const kPrimaryGradient = LinearGradient(
+  colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+// ------------------------------------------
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -28,13 +37,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   DocumentReference get _userDocRef {
     final uid = _auth.currentUser!.uid;
+    // --- UPDATED PATH (to match your settings_page) ---
+    const appId = String.fromEnvironment('app_id', defaultValue: 'default-app-id');
     return _firestore
-        .collection('artifacts')
-        .doc(kAppId)
-        .collection('users')
-        .doc(uid)
-        .collection('profile')
-        .doc('details');
+        .doc('artifacts/$appId/users/$uid/profile/details');
   }
 
   @override
@@ -50,6 +56,50 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.dispose();
   }
 
+  // --- (Reusable Gradient Button) ---
+  Widget _buildGradientButton({
+    required VoidCallback? onPressed,
+    required String text,
+    IconData? icon,
+    required Gradient gradient,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12.0),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+        ),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Container(
+            // Make button width fit its content
+            width: null,
+            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0), // Added horizontal padding
+            alignment: Alignment.center,
+            child: (icon != null)
+                ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min, // Fit content
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ],
+            )
+                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- CORE FUNCTIONS (Now with Safety Checks) ---
 
   Future<void> _loadUserData() async {
@@ -63,13 +113,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _currentImageUrl = data['profileImageUrl'];
       }
     } catch (e) {
-      // **FIX:** Check if the widget is still on screen before showing UI
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to load profile data: $e')),
       );
     } finally {
-      // **FIX:** Check if the widget is still on screen before updating state
       if (mounted) {
         setState(() { _isLoading = false; });
       }
@@ -108,7 +156,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final imagePicker = ImagePicker();
     final pickedFile = await imagePicker.pickImage(source: source);
     if (pickedFile != null) {
-      // **FIX:** Check if the widget is still on screen before updating state
       if (!mounted) return;
       setState(() {
         _pickedImage = File(pickedFile.path);
@@ -127,7 +174,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final downloadUrl = await ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      // **FIX:** Check if the widget is still on screen
       if (!mounted) return null;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to upload image: $e')),
@@ -142,25 +188,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final newImageUrl = await _uploadImage();
-      await _userDocRef.update({
+      // Use .set() with merge: true to safely create/update fields
+      await _userDocRef.set({
         'name': _nameController.text,
         'profileImageUrl': newImageUrl,
-      });
+      }, SetOptions(merge: true));
 
-      // **FIX:** Check if the widget is still on screen
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile saved!')),
       );
       Navigator.of(context).pop();
     } catch (e) {
-      // **FIX:** Check if the widget is still on screen
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to save profile: $e')),
       );
     } finally {
-      // **FIX:** Check if the widget is still on screen
       if (mounted) {
         setState(() { _isLoading = false; });
       }
@@ -169,9 +213,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // --- 2. REPLACED Scaffold with GradientScaffold ---
+    return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        // --- 3. Made AppBar transparent ---
+        title: const Text(
+          'Edit Profile',
+          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: BackButton(color: Colors.black87),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -179,19 +231,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
         padding: const EdgeInsets.all(24.0),
         child: Form(
           key: _formKey,
-          // We wrap the fields in a Column to control alignment
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               CircleAvatar(
                 radius: 60,
+                // Make the background transparent to show placeholder
+                backgroundColor: Colors.white.withOpacity(0.5),
                 backgroundImage: _pickedImage != null
                     ? FileImage(_pickedImage!)
                     : _currentImageUrl != null
                     ? NetworkImage(_currentImageUrl!)
                     : null,
                 child: _pickedImage == null && _currentImageUrl == null
-                    ? const Icon(Icons.person, size: 60)
+                    ? const Icon(Icons.person, size: 60, color: Colors.grey)
                     : null,
               ),
               TextButton(
@@ -213,7 +266,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: 'Email'),
-                readOnly: true,
+                readOnly: true, // Email is not editable
               ),
 
               const SizedBox(height: 32),
@@ -221,13 +274,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
               // Align the button to the left
               Align(
                 alignment: Alignment.centerLeft,
-                child: ElevatedButton(
+                // --- 4. REPLACED with Gradient Button ---
+                child: _buildGradientButton(
                   onPressed: _saveProfile,
-                  // Add horizontal padding to the button
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  ),
-                  child: const Text('Save Changes'),
+                  text: 'Save Changes',
+                  gradient: kPrimaryGradient,
                 ),
               ),
             ],

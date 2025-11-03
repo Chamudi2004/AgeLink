@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart'; // Make sure your gradients are in here
 import 'gradient_scaffold.dart'; // Import your gradient scaffold
 
-// --- (Gradient constants) ---
+// --- (Copy these gradient constants from medication_schedule_page.dart) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -15,6 +15,7 @@ const kRedGradient = LinearGradient(
   begin: Alignment.centerLeft,
   end: Alignment.centerRight,
 );
+// ------------------------------------------
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -25,7 +26,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
-  late final DocumentReference _userProfileRef; // <-- RENAMED
+  late final DocumentReference _userProfileRef;
 
   // Controllers for the "Add Contact" dialog
   final _nameController = TextEditingController();
@@ -37,12 +38,9 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    // --- UPDATED PATH ---
-    // This now points to your complex artifacts path
     const appId = String.fromEnvironment('app_id', defaultValue: 'default-app-id');
     _userProfileRef = FirebaseFirestore.instance
         .doc('artifacts/$appId/users/${currentUser!.uid}/profile/details');
-    // --------------------
   }
 
   @override
@@ -52,14 +50,18 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
-  // --- (Reusable Gradient Button - UNCHANGED) ---
+  // --- (UPDATED Reusable Gradient Button) ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
     IconData? icon,
     required Gradient gradient,
+    // Added these new parameters for flexibility
+    EdgeInsets padding = const EdgeInsets.symmetric(vertical: 16.0),
+    double? width = double.infinity, // Default to full-width
+    double fontSize = 16,
+    FontWeight fontWeight = FontWeight.bold,
   }) {
-    // ... (This function is correct, no changes)
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -69,48 +71,73 @@ class _SettingsPageState extends State<SettingsPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent, // Handle disabled state
         ),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: gradient,
+            gradient: (onPressed != null)
+                ? gradient
+                : LinearGradient( // Gray gradient when disabled
+              colors: [Colors.grey, Colors.grey.shade500],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
             borderRadius: BorderRadius.circular(12.0),
           ),
           child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            width: width, // Use the width parameter
+            padding: padding, // Use the padding parameter
             alignment: Alignment.center,
             child: (icon != null)
                 ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min, // Fit content if width is null
               children: [
                 Icon(icon, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
-                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Text(text, style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize)),
               ],
             )
-                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                : Text(text, style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize)),
           ),
         ),
       ),
     );
   }
 
-  // --- (Dialog to Add New Contact - UNCHANGED) ---
+  // --- (UPDATED Dialog to Add New Contact) ---
   void _showAddContactDialog() {
     _nameController.clear();
     _phoneController.clear();
+
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Add Emergency Contact'),
+          // Styled to match your theme
+          backgroundColor: const Color(0xFFF0F4FF), // Light blue background
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          title: const Text(
+            'Add Emergency Contact',
+            style: TextStyle(
+              color: Color(0xFF0D47A1), // Dark blue
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Name (e..g., Jane Doe)'),
+                decoration: const InputDecoration(labelText: 'Name (e.g., Jane Doe)'),
               ),
+
+              // --- (THIS IS THE ADDED SPACING) ---
+              const SizedBox(height: 16),
+              // -------------------------------------
+
               TextField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
@@ -119,12 +146,14 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
           actions: [
+            // "Cancel" button
             TextButton(
-              child: const Text('Cancel'),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            ElevatedButton(
-              child: const Text('Save'),
+
+            // "Save" Gradient Button
+            _buildGradientButton(
               onPressed: () {
                 _saveContact(
                   name: _nameController.text.trim(),
@@ -132,6 +161,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 );
                 Navigator.of(context).pop();
               },
+              text: 'Save',
+              gradient: kPrimaryGradient,
+              width: null, // Make button fit its content
+              fontSize: 14,
+              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0), // Smaller padding
             ),
           ],
         );
@@ -139,6 +173,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // --- (Firebase Logic) ---
   void _saveContact({required String name, required String phone}) {
     if (name.isEmpty || phone.isEmpty) return;
     final newContact = {'name': name, 'phone': phone};
@@ -158,7 +193,10 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text(
+          'Settings',
+          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: BackButton(color: Colors.black87),
@@ -244,7 +282,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const Divider(height: 40),
 
-            // --- "APP SETTINGS" SECTION (UNCHANGED) ---
+            // --- "APP SETTINGS" SECTION ---
             const Text(
               'App Settings',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),

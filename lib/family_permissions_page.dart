@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'invite_member_page.dart';
+import 'gradient_scaffold.dart'; // <-- 1. IMPORTED
+
+// --- (Gradient constants) ---
+const kPrimaryGradient = LinearGradient(
+  colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
+  begin: Alignment.centerLeft,
+  end: Alignment.centerRight,
+);
+// ------------------------------------------
 
 class FamilyPermissionsPage extends StatefulWidget {
   const FamilyPermissionsPage({super.key});
@@ -22,7 +32,9 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
     super.initState();
     if (currentUser != null) {
       // Listen to the subcollection of family members
-      // TODO: Confirm this is your correct database structure
+      // We fixed this path in settings_page, but your code here is
+      // still using the simple 'users' collection.
+      // This is OK, but make sure your Firestore Rules match!
       _familyStream = FirebaseFirestore.instance
           .collection('users')
           .doc(currentUser!.uid)
@@ -32,6 +44,48 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
       // Handle case where user is null (shouldn't happen, but safe)
       _familyStream = Stream.empty();
     }
+  }
+
+  // --- (Reusable Gradient Button) ---
+  Widget _buildGradientButton({
+    required VoidCallback? onPressed,
+    required String text,
+    IconData? icon,
+    required Gradient gradient,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12.0),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+        ),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            alignment: Alignment.center,
+            child: (icon != null)
+                ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            )
+                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -44,12 +98,20 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
       );
     }
 
-    return Scaffold(
+    // --- 2. REPLACED Scaffold with GradientScaffold ---
+    return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Family and Permission'),
+        // 3. Made AppBar transparent
+        title: const Text(
+          'Family and Permission',
+          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: BackButton(color: Colors.black87),
         actions: [
           IconButton(
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(Icons.more_vert, color: Colors.black87),
             onPressed: () {
               // TODO: Add menu options
             },
@@ -94,7 +156,6 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
                     itemCount: docs.length,
                     itemBuilder: (context, index) {
                       var member = docs[index].data() as Map<String, dynamic>;
-                      // TODO: Add 'name' and 'mode' fields when inviting
                       return _buildMemberCard(
                         member['name'] ?? 'Unknown Name',
                         member['mode'] ?? 'View Mode',
@@ -105,19 +166,20 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
               ),
             ),
 
-            // 2. "Edit Access" Button
-            ElevatedButton(
+            // --- 5. REPLACED ElevatedButton with Gradient Button ---
+            _buildGradientButton(
               onPressed: () {
                 // TODO: Navigate to an "Edit Access" page
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Edit Access pressed')),
                 );
               },
-              child: const Text('Edit Access'),
+              text: 'Edit Access',
+              gradient: kPrimaryGradient,
             ),
             const SizedBox(height: 24),
 
-            // 3. "Invite Family Members" Link
+            // 3. "Invite Family Members" Link (Unchanged, as it's a link)
             _buildInviteButton(context),
           ],
         ),
@@ -153,6 +215,8 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
       elevation: 1,
+      // Made the card slightly transparent to blend with the background
+      color: Colors.white.withOpacity(0.8),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Row(
@@ -179,7 +243,7 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
   }
 
   // Helper widget for the "Invite" link
-  // UPDATED: This now navigates to your new InviteMemberPage
+  // (This is not a button, so it remains an InkWell)
   Widget _buildInviteButton(BuildContext context) {
     return InkWell(
       onTap: () {
