@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
-import 'package:intl/intl.dart'; // We need this to format dates
+import 'package:intl/intl.dart';
 
 class MedicationHistoryPage extends StatefulWidget {
   const MedicationHistoryPage({super.key});
@@ -23,15 +23,12 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
   void initState() {
     super.initState();
     if (_currentUser != null) {
-      // --- This is the new collection path ---
       final String schedulesCollectionPath =
           'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
 
-      // Query for all schedules that are NOT active, ordered by newest first
       _historyStream = _firestore
           .collection(schedulesCollectionPath)
-      // --- THIS IS THE CORRECTED LINE ---
-          .where('isActive', isEqualTo: false)
+          .orderBy('isActive', descending: true)
           .orderBy('createdAt', descending: true)
           .snapshots();
     } else {
@@ -39,10 +36,8 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
     }
   }
 
-  // Helper function to format the Timestamp
   String _formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return 'Unknown Date';
-    // Using intl package for a clean date format
     return DateFormat('MMMM d, yyyy').format(timestamp.toDate());
   }
 
@@ -65,14 +60,22 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Text(
+                  'Error: ${snapshot.error}\n\nThis query requires a composite index. Please copy the link from your debug console and open it in a browser to create the index.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history_toggle_off, size: 80, color: Constants.mediumGrey),
+                  Icon(Icons.history_toggle_off, size: 80, color: Constants.darkblue),
                   const SizedBox(height: 16),
                   Text(
                     'No schedule history found.',
@@ -83,7 +86,6 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
             );
           }
 
-          // We have history, build the list
           return ListView.builder(
             padding: const EdgeInsets.all(16.0),
             itemCount: snapshot.data!.docs.length,
@@ -93,22 +95,31 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
               final scheduleName = data['scheduleName'] ?? 'Unnamed Schedule';
               final createdAt = data['createdAt'] as Timestamp?;
               final medications = List<Map<String, dynamic>>.from(data['medications'] ?? []);
-
-              // Build a summary of the pills
+              final bool isActive = data['isActive'] ?? false;
               final pillNames = medications.map((m) => m['name'] ?? 'N/A').join(', ');
 
+              // --- APPLY CONDITIONAL STYLING
               return Card(
-                elevation: 2,
+                elevation: isActive ? 4 : 2,
                 margin: const EdgeInsets.only(bottom: 12.0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: isActive ? Constants.darkblue : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16.0),
+                  leading: isActive
+                      ? Icon(Icons.check_circle, color: Constants.greenColor)
+                      : null,
                   title: Text(
                     scheduleName,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      color: Constants.darkblue,
+                      color: isActive ? Constants.darkblue : Colors.grey.shade700,
                     ),
                   ),
                   subtitle: Column(
@@ -116,8 +127,12 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
                     children: [
                       const SizedBox(height: 4),
                       Text(
-                        'Created: ${_formatTimestamp(createdAt)}',
-                        style: TextStyle(color: Constants.mediumGrey, fontStyle: FontStyle.italic),
+                        isActive ? 'Current Active Schedule' : 'Created: ${_formatTimestamp(createdAt)}',
+                        style: TextStyle(
+                          color: isActive ? Constants.greenColor : Constants.mediumGrey,
+                          fontStyle: FontStyle.italic,
+                          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -130,7 +145,6 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
                   ),
                   onTap: () {
                     // TODO: Could navigate to a "History Detail" page
-                    // to see the full list of pills from this schedule.
                   },
                 ),
               );
