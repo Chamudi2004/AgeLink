@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
-// import 'medication_schedule_page.dart'; // No longer needed
 import 'pair_device_page.dart';
 // We need to import this to get the gradient button
 import 'medication_schedule_page.dart' show kPrimaryGradient;
-
+import 'package:intl/intl.dart'; // Import for date formatting
 
 // Helper class for today's doses
 class _TodayDose {
@@ -30,6 +29,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _currentDate = 'Loading...';
+  String _currentDayOfWeek = ''; // e.g., "Monday"
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
@@ -42,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
     IconData? icon,
     required Gradient gradient,
   }) {
+    // ... (This function is correct, no changes)
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -80,24 +81,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _currentDate = _formatDate(DateTime.now());
+    DateTime now = DateTime.now();
+    _currentDate = _formatDate(now);
+    // Get the full day name, e.g., "Monday"
+    _currentDayOfWeek = DateFormat('EEEE').format(now);
   }
 
   String _formatDate(DateTime date) {
-    final dayOfWeek = _getDayOfWeek(date.weekday);
-    final month = _getMonth(date.month);
-    return '$dayOfWeek, $month ${date.day}';
+    // Use intl package for easier formatting
+    return DateFormat('EEEE, MMMM d').format(date);
   }
 
-  String _getDayOfWeek(int weekday) {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return days[weekday - 1];
-  }
-
-  String _getMonth(int month) {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return months[month - 1];
-  }
+  // (REMOVED _getDayOfWeek and _getMonth as _formatDate now handles it)
 
   String _formatTime12h(String time24h) {
     try {
@@ -112,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMedicationItem(_TodayDose dose) {
+    // ... (This function is correct, no changes)
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -169,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- UPDATED: Gradient Button ---
+          // --- Gradient Button ---
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: _buildGradientButton(
@@ -233,8 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: StreamBuilder<QuerySnapshot>(
                 stream: _firestore
                     .collection(schedulesCollectionPath)
-                    .where('isActive', isEqualTo: true) // Get the active schedule
-                    .limit(1)
+                    .where('isActive', isEqualTo: true) // Get all active schedules
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -252,34 +247,50 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // --- Process the Data from the active schedule ---
-                  final scheduleDoc = snapshot.data!.docs.first;
-                  final medications = List<Map<String, dynamic>>.from(scheduleDoc.get('medications') ?? []);
-
-                  if (medications.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Center(
-                          child: Text("Your schedule is empty.")),
-                    );
-                  }
-
-                  // --- Flatten the schedule ---
+                  // --- (THIS IS THE NEW LOGIC) ---
                   final List<_TodayDose> todayDoses = [];
-                  for (final med in medications) {
-                    // TODO: Add logic for 'frequency' (e.g., check if today is the right day)
-                    // For now, we assume all are 'Daily'
-                    final times = List<String>.from(med['times'] ?? []);
-                    for (final time in times) {
-                      todayDoses.add(_TodayDose(
-                        time: time,
-                        name: med['name'] ?? 'N/A',
-                        dosage: med['dosage'] ?? 'N/A',
-                      ));
+
+                  // 1. Loop through all active SCHEDULES
+                  for (var scheduleDoc in snapshot.data!.docs) {
+                    final medications = List<Map<String, dynamic>>.from(scheduleDoc.get('medications') ?? []);
+
+                    // 2. Loop through all PILLS in that schedule
+                    for (final med in medications) {
+                      final String freq = med['frequency'] ?? 'Daily';
+                      bool shouldAddToday = false;
+
+                      // 3. Check the frequency
+                      if (freq == 'Daily') {
+                        shouldAddToday = true;
+                      } else if (freq == 'Weekly') {
+                        // TODO: This assumes you save the "day" in the 'Custom' field
+                        // For now, let's just check against the current day name
+                        // This is a placeholder - you'll need to store which day
+                        // e.g., if (med['dayOfWeek'] == _currentDayOfWeek)
+                        // This is a simple example, assuming "Weekly" means today
+                        if (med['dayOfWeek'] == _currentDayOfWeek) { // Example check
+                          shouldAddToday = true;
+                        }
+                      } else if (freq == 'Custom') {
+                        // TODO: Add logic to check custom dates
+                      }
+
+                      // 4. If it's for today, add its times
+                      if (shouldAddToday) {
+                        final times = List<String>.from(med['times'] ?? []);
+                        for (final time in times) {
+                          todayDoses.add(_TodayDose(
+                            time: time,
+                            name: med['name'] ?? 'N/A',
+                            dosage: med['dosage'] ?? 'N/A',
+                          ));
+                        }
+                      }
                     }
                   }
+                  // --- (END OF NEW LOGIC) ---
 
-                  // Sort the list by time
+                  // Sort the final list by time
                   todayDoses.sort((a, b) => a.time.compareTo(b.time));
 
                   if (todayDoses.isEmpty) {
