@@ -77,82 +77,76 @@ class _NotificationPageState extends State<NotificationPage> {
       return const Center(child: Text("Error: Alerts collection path is invalid.", style: TextStyle(fontSize: 18)));
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Medication Alerts (Live)', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-      ),
+    // --- (FIX: REMOVED THE Scaffold AND AppBar WIDGETS) ---
+    // The GradientScaffold from home_page.dart will provide the background and app bar.
 
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _alertsCollection!.orderBy('date', descending: true).snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return StreamBuilder<QuerySnapshot>(
+      stream: _alertsCollection!.orderBy('date', descending: true).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading alerts: ${snapshot.error}'));
-          }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error loading alerts: ${snapshot.error}'));
+        }
 
-          final alerts = snapshot.data!.docs.map((doc) => DoseNotification.fromFirestore(doc)).toList();
+        final alerts = snapshot.data!.docs.map((doc) => DoseNotification.fromFirestore(doc)).toList();
 
-          if (alerts.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32.0),
-                child: Text(
-                  'No medication alerts recorded yet. All doses taken successfully!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
+        if (alerts.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: Text(
+                'No medication alerts recorded yet. All doses taken successfully!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+            ),
+          );
+        }
+
+        // The list will now be the main widget returned by this page
+        return ListView.builder(
+          padding: const EdgeInsets.all(8.0),
+          itemCount: alerts.length,
+          itemBuilder: (context, index) {
+            final notification = alerts[index];
+
+            final statusColor = notification.isTaken ? Colors.green.shade600 : Colors.red.shade600;
+            final statusIcon = notification.isTaken ? Icons.check_circle_outline : Icons.cancel_outlined;
+            final statusText = notification.isTaken ? 'Taken' : 'Missed';
+
+            return Card(
+              elevation: 2,
+              margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: ListTile(
+                leading: Icon(
+                  statusIcon,
+                  color: statusColor,
+                  size: 32,
+                ),
+                title: Text(
+                  notification.medicationName,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                subtitle: Text(
+                  '$statusText at ${notification.time} on ${_formatDate(notification.date)}',
+                  style: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
+                ),
+                trailing: Chip(
+                  label: Text(
+                    notification.time,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  backgroundColor: statusColor.withOpacity(0.8),
                 ),
               ),
             );
-          }
-
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(8.0),
-            itemCount: alerts.length,
-            itemBuilder: (context, index) {
-              final notification = alerts[index];
-
-              final statusColor = notification.isTaken ? Colors.green.shade600 : Colors.red.shade600;
-              final statusIcon = notification.isTaken ? Icons.check_circle_outline : Icons.cancel_outlined;
-              final statusText = notification.isTaken ? 'Taken' : 'Missed';
-
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: ListTile(
-                  leading: Icon(
-                    statusIcon,
-                    color: statusColor,
-                    size: 32,
-                  ),
-                  title: Text(
-                    notification.medicationName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  subtitle: Text(
-                    '$statusText at ${notification.time} on ${_formatDate(notification.date)}',
-                    style: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
-                  ),
-                  trailing: Chip(
-                    label: Text(
-                      notification.time,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                    backgroundColor: statusColor.withOpacity(0.8),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+          },
+        );
+      },
     );
   }
 }

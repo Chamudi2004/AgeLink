@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
-import 'medication_schedule_page.dart' show Medication;
+import 'pair_device_page.dart';
+// We need to import this to get the gradient button
+import 'medication_schedule_page.dart' show kPrimaryGradient;
+import 'package:intl/intl.dart'; // Import for date formatting
 
-
+// Helper class for today's doses
 class _TodayDose {
   final String time; // e.g., "08:00"
   final String name;
@@ -26,34 +29,70 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _currentDate = 'Loading...';
-
+  String _currentDayOfWeek = ''; // e.g., "Monday"
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
+  // --- NEW: Reusable Gradient Button ---
+  Widget _buildGradientButton({
+    required VoidCallback? onPressed,
+    required String text,
+    IconData? icon,
+    required Gradient gradient,
+  }) {
+    // ... (This function is correct, no changes)
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12.0),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+        ),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            alignment: Alignment.center,
+            child: (icon != null)
+                ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ],
+            )
+                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _currentDate = _formatDate(DateTime.now());
+    DateTime now = DateTime.now();
+    _currentDate = _formatDate(now);
+    // Get the full day name, e.g., "Monday"
+    _currentDayOfWeek = DateFormat('EEEE').format(now);
   }
 
   String _formatDate(DateTime date) {
-    final dayOfWeek = _getDayOfWeek(date.weekday);
-    final month = _getMonth(date.month);
-    return '$dayOfWeek, $month ${date.day}';
+    // Use intl package for easier formatting
+    return DateFormat('EEEE, MMMM d').format(date);
   }
 
-  String _getDayOfWeek(int weekday) {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return days[weekday - 1];
-  }
-
-  String _getMonth(int month) {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return months[month - 1];
-  }
-
+  // (REMOVED _getDayOfWeek and _getMonth as _formatDate now handles it)
 
   String _formatTime12h(String time24h) {
     try {
@@ -67,8 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-
   Widget _buildMedicationItem(_TodayDose dose) {
+    // ... (This function is correct, no changes)
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -107,7 +146,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-
           Icon(
             Icons.radio_button_unchecked,
             color: Constants.mediumGrey,
@@ -120,30 +158,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // collection path
-    final String medicationCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medications';
+    // --- UPDATED: New collection path ---
+    final String schedulesCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // --- Gradient Button ---
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
+            child: _buildGradientButton(
               onPressed: () {
-                // connect device action
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PairDevicePage(),
+                  ),
+                );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Constants.darkBlue,
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Connect Device',
-                style: TextStyle(fontSize: 18, color: Colors.white),
-              ),
+              text: 'Connect Device',
+              icon: Icons.device_hub, // Example icon
+              gradient: kPrimaryGradient,
             ),
           ),
           const SizedBox(height: 16),
@@ -172,13 +208,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // MEDICATION LIST
+          // --- UPDATED: MEDICATION LIST ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Colors.white, // This white card is correct
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
@@ -189,57 +225,74 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-
+              // --- UPDATED: StreamBuilder for new logic ---
               child: StreamBuilder<QuerySnapshot>(
-                stream: _firestore.collection(medicationCollectionPath).snapshots(),
+                stream: _firestore
+                    .collection(schedulesCollectionPath)
+                    .where('isActive', isEqualTo: true) // Get all active schedules
+                    .snapshots(),
                 builder: (context, snapshot) {
-                  // Show loading spinner
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-
-                  // Show error
                   if (snapshot.hasError) {
                     return const Center(
                         child: Text('Error loading schedule.'));
                   }
-
-                  // Handle no data
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16.0),
                       child: Center(
-                          child: Text("No medication scheduled for today.")),
+                          child: Text("No active medication schedule found.")),
                     );
                   }
 
-                  // --- Process the Data ---
-                  // 1. Convert Firestore docs to 'Medication' objects
-                  final medications = snapshot.data!.docs
-                      .map((doc) => Medication.fromFirestore(doc))
-                      .toList();
-
-                  // 2. Flatten the schedule
+                  // --- (THIS IS THE NEW LOGIC) ---
                   final List<_TodayDose> todayDoses = [];
-                  for (final med in medications) {
-                    // TODO: Add logic for 'frequency'
-                    // For now, we assume all are 'Daily'
-                    if (med.frequency == 'Daily') {
-                      for (final time in med.times) {
-                        todayDoses.add(_TodayDose(
-                          time: time,
-                          name: med.name,
-                          dosage: med.dosage,
-                        ));
+
+                  // 1. Loop through all active SCHEDULES
+                  for (var scheduleDoc in snapshot.data!.docs) {
+                    final medications = List<Map<String, dynamic>>.from(scheduleDoc.get('medications') ?? []);
+
+                    // 2. Loop through all PILLS in that schedule
+                    for (final med in medications) {
+                      final String freq = med['frequency'] ?? 'Daily';
+                      bool shouldAddToday = false;
+
+                      // 3. Check the frequency
+                      if (freq == 'Daily') {
+                        shouldAddToday = true;
+                      } else if (freq == 'Weekly') {
+                        // TODO: This assumes you save the "day" in the 'Custom' field
+                        // For now, let's just check against the current day name
+                        // This is a placeholder - you'll need to store which day
+                        // e.g., if (med['dayOfWeek'] == _currentDayOfWeek)
+                        // This is a simple example, assuming "Weekly" means today
+                        if (med['dayOfWeek'] == _currentDayOfWeek) { // Example check
+                          shouldAddToday = true;
+                        }
+                      } else if (freq == 'Custom') {
+                        // TODO: Add logic to check custom dates
+                      }
+
+                      // 4. If it's for today, add its times
+                      if (shouldAddToday) {
+                        final times = List<String>.from(med['times'] ?? []);
+                        for (final time in times) {
+                          todayDoses.add(_TodayDose(
+                            time: time,
+                            name: med['name'] ?? 'N/A',
+                            dosage: med['dosage'] ?? 'N/A',
+                          ));
+                        }
                       }
                     }
                   }
+                  // --- (END OF NEW LOGIC) ---
 
-                  // 3. Sort the flattened list by time
+                  // Sort the final list by time
                   todayDoses.sort((a, b) => a.time.compareTo(b.time));
 
-
-                  // If the processed list is empty (e.g., no 'Daily' meds)
                   if (todayDoses.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16.0),
@@ -248,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // Build the list view from the processed 'todayDoses'
+                  // Build the list view
                   return Column(
                     children: [
                       for (int i = 0; i < todayDoses.length; i++)
