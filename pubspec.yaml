@@ -45,6 +45,7 @@ dependencies:
   firebase_storage: ^13.0.3
   image_picker: ^1.1.2
   intl: ^0.20.2
+  flutter_native_splash: ^2.4.7
 
 dev_dependencies:
   flutter_test:
@@ -61,12 +62,27 @@ dev_dependencies:
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
+  flutter_launcher_icons: ^0.13.1
+
 flutter:
 
   uses-material-design: true
 
   assets:
     - assets/
+
+flutter_native_splash:
+  # The light blue gradient from your app
+  color: "#F0F4FF"
+  color_dark: "#F0F4FF"
+
+  # Your logo
+  image: assets/logo.png
+  image_dark: assets/logo.png
+
+  android_12:
+    color: "#F0F4FF"
+    image: assets/logo.png
 
 
   # To add assets to your application, add an assets section, like this:
@@ -99,3 +115,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/l_logo.png" # <-- Make sure this path is correct
+  min_sdk_android: 21
