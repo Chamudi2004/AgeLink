@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
-
-// --- Import your new pages ---
 import 'add_full_schedule_page.dart';
 import 'medication_history_page.dart';
 import 'edit_single_medication_page.dart';
 
-// --- (Constants for our Gradients) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -20,7 +17,6 @@ const kOrangeGradient = LinearGradient(
   begin: Alignment.centerLeft,
   end: Alignment.centerRight,
 );
-// ------------------------------------------
 
 class MedicationSchedulePage extends StatefulWidget {
   const MedicationSchedulePage({super.key});
@@ -34,12 +30,10 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // --- This is the new collection path ---
   String get _schedulesCollectionPath {
     return 'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
   }
 
-  // --- This function now navigates to the new page ---
   void _navigateToAddSchedule() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -56,7 +50,6 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
     );
   }
 
-  // --- Navigation for the new Edit button ---
   void _navigateToEditSingleMed(Map<String, dynamic> medication, String scheduleId) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -68,7 +61,6 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
     );
   }
 
-  // --- (HELPER FUNCTION) ---
   String _formatTime12h(String time24h) {
     try {
       final parts = time24h.split(':');
@@ -77,11 +69,10 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
       final dt = DateTime(2025, 1, 1, hour, minute);
       return TimeOfDay.fromDateTime(dt).format(context);
     } catch (e) {
-      return time24h; // Return original string if formatting fails
+      return time24h;
     }
   }
 
-  // --- (HELPER FUNCTION) ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
@@ -109,7 +100,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
           decoration: BoxDecoration(
             gradient: isEnabled
                 ? gradient
-                : LinearGradient( // Disabled gradient
+                : LinearGradient(
               colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
@@ -148,18 +139,13 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
       return const Center(child: Text('Please log in to see your schedule.'));
     }
 
-    // --- The build method is now a Column ---
     return Column(
       children: [
-        // 1. The list, inside an Expanded to fill available space
         Expanded(
-          // --- UPDATED STREAMBUILDER ---
           child: StreamBuilder<QuerySnapshot>(
-            // Query for the ONE active schedule
             stream: _firestore
                 .collection(_schedulesCollectionPath)
                 .where('isActive', isEqualTo: true)
-                .limit(1)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -170,9 +156,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              // --- UPDATED LOGIC ---
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                // This is the "Empty" state
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -189,106 +173,94 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
                 );
               }
 
-              // We found the active schedule, now display its pills
-              final activeScheduleDoc = snapshot.data!.docs.first;
-              final scheduleId = activeScheduleDoc.id; // <-- Get the schedule ID
-              final scheduleData = activeScheduleDoc.data() as Map<String, dynamic>;
-              final scheduleName = scheduleData['scheduleName'] ?? 'Current Schedule';
-              final medicationsList = List<Map<String, dynamic>>.from(scheduleData['medications'] ?? []);
-
-              if (medicationsList.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.calendar_month, size: 80, color: Constants.darkblue),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Your schedule is empty.\nTap "Add New" to create one!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 18, color: Constants.mediumGrey),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              // --- The list view for the medications ---
               return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 90), // Added padding for buttons
-                itemCount: medicationsList.length + 1,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                itemCount: snapshot.data!.docs.length,
                 itemBuilder: (context, index) {
+                  final activeScheduleDoc = snapshot.data!.docs[index];
+                  final scheduleId = activeScheduleDoc.id;
+                  final scheduleData = activeScheduleDoc.data() as Map<String, dynamic>;
+                  final scheduleName = scheduleData['scheduleName'] ?? 'Current Schedule';
+                  final medicationsList = List<Map<String, dynamic>>.from(scheduleData['medications'] ?? []);
 
-                  // --- ADDED A HEADER ---
-                  if (index == 0) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: Text(
-                        scheduleName,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Constants.darkblue
-                        ),
-                      ),
-                    );
-                  }
-
-                  // --- This is the medication item ---
-                  final med = medicationsList[index - 1]; // -1 to account for header
-                  final medName = med['name'] ?? 'No Name';
-                  final medDosage = med['dosage'] ?? 'N/A';
-                  final medTimes = List<String>.from(med['times'] ?? []);
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                        title: Text(
-                          medName,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Constants.darkblue,
+                  return Card(
+                    elevation: 2,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text(
+                            scheduleName,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Constants.darkblue
+                            ),
                           ),
                         ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Text('Dosage: $medDosage', style: TextStyle(color: Constants.darkGrey)),
-                            const SizedBox(height: 2),
-                            // --- THIS IS THE FIX for the "Too many arguments" error ---
-                            Text(
-                              'Times: ${medTimes.map(_formatTime12h).join(', ')}',
-                              style: TextStyle(
-                                fontStyle: FontStyle.italic,
-                                color: Constants.mediumGrey,
-                              ),
-                            ),
-                          ],
-                        ),
 
-                        // --- Added the Edit button ---
-                        trailing: IconButton(
-                          icon: Icon(Icons.edit_outlined, color: Constants.darkblue),
-                          onPressed: () {
-                            // Find the original medication map in the list
-                            final originalMedData = medicationsList.firstWhere(
-                                  (m) => m['name'] == medName,
-                              orElse: () => med, // Fallback
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: medicationsList.length,
+                          itemBuilder: (context, medIndex) {
+                            final med = medicationsList[medIndex];
+                            final medName = med['name'] ?? 'No Name';
+                            final medDosage = med['dosage'] ?? 'N/A';
+                            final medTimes = List<String>.from(med['times'] ?? []);
+                            final medFrequency = med['frequency'] ?? 'Daily';
+
+                            return Column(
+                              children: [
+                                ListTile(
+                                  contentPadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                                  title: Text(
+                                    medName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Constants.darkblue,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 4),
+                                      Text('Dosage: $medDosage', style: TextStyle(color: Constants.darkGrey)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Times: ${medTimes.map(_formatTime12h).join(', ')} ($medFrequency)',
+                                        style: TextStyle(
+                                          fontStyle: FontStyle.italic,
+                                          color: Constants.mediumGrey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: IconButton(
+                                    icon: Icon(Icons.edit_outlined, color: Constants.darkblue),
+                                    onPressed: () {
+                                      final originalMedData = medicationsList.firstWhere(
+                                            (m) => m['name'] == medName,
+                                        orElse: () => med,
+                                      );
+                                      _navigateToEditSingleMed(originalMedData, scheduleId);
+                                    },
+                                  ),
+                                ),
+                                if (medIndex < medicationsList.length - 1)
+                                  const Divider(height: 1, indent: 16, endIndent: 16),
+                              ],
                             );
-
-                            _navigateToEditSingleMed(originalMedData, scheduleId);
                           },
                         ),
-                      ),
+                      ],
                     ),
                   );
                 },
@@ -297,7 +269,6 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
           ),
         ),
 
-        // --- UPDATED BUTTONS ---
         Container(
           padding: const EdgeInsets.all(20.0),
           decoration: BoxDecoration(
@@ -312,22 +283,23 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
                   onPressed: _navigateToHistory,
                   text: 'History',
                   icon: Icons.history,
-                  gradient: kOrangeGradient, // Use orange gradient
+                  gradient: kOrangeGradient,
                 ),
               ),
               const SizedBox(width: 12),
-              // "Add New Schedule" Button
               Expanded(
                 child: _buildGradientButton(
                   onPressed: _navigateToAddSchedule,
                   text: 'Add New',
                   icon: Icons.add,
-                  gradient: kPrimaryGradient, // Use primary blue gradient
+                  gradient: kPrimaryGradient,
                 ),
               ),
             ],
           ),
         ),
+
+        const SizedBox(height: 16),
       ],
     );
   }

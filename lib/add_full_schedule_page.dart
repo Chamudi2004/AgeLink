@@ -4,29 +4,28 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
-// --- (Copy these gradient constants from medication_schedule_page.dart) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
   end: Alignment.centerRight,
 );
 const kGreenGradient = LinearGradient(
-  colors: [Color(0xFF66BB6A), Color(0xFF388E3C)], // Green gradient
+  colors: [Color(0xFF66BB6A), Color(0xFF388E3C)],
   begin: Alignment.centerLeft,
   end: Alignment.centerRight,
 );
-// ---------------------------------------------------------------------
 
-// A helper class to hold the controllers for each medication row
 class _MedicationEntry {
   final TextEditingController name;
   final TextEditingController dosage;
   final List<TimeOfDay> times;
+  String frequency;
 
   _MedicationEntry()
       : name = TextEditingController(),
         dosage = TextEditingController(),
-        times = [];
+        times = [],
+        frequency = 'Daily';
 }
 
 class AddFullSchedulePage extends StatefulWidget {
@@ -40,7 +39,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
   final _formKey = GlobalKey<FormState>();
   final _scheduleNameController = TextEditingController();
 
-  // This list holds all the medication forms on the page
   final List<_MedicationEntry> _medicationEntries = [_MedicationEntry()];
 
   bool _isLoading = false;
@@ -48,7 +46,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // --- (Reusable Gradient Button) ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
@@ -56,6 +53,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     required Gradient gradient,
     double verticalPadding = 16.0,
   }) {
+    final bool isEnabled = onPressed != null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -65,10 +63,18 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          elevation: 5,
         ),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: gradient,
+            gradient: isEnabled
+                ? gradient
+                : LinearGradient(
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
             borderRadius: BorderRadius.circular(12.0),
           ),
           child: Container(
@@ -91,7 +97,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     );
   }
 
-  // --- Page Functions ---
 
   void _addMedicationRow() {
     setState(() {
@@ -100,9 +105,11 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
   }
 
   void _removeMedicationRow(int index) {
-    setState(() {
-      _medicationEntries.removeAt(index);
-    });
+    if (_medicationEntries.length > 1) {
+      setState(() {
+        _medicationEntries.removeAt(index);
+      });
+    }
   }
 
   Future<void> _selectTime(int entryIndex) async {
@@ -124,7 +131,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     });
   }
 
-  // --- This is the new "Save" logic ---
   Future<void> _saveSchedule() async {
     if (!_formKey.currentState!.validate()) return;
     if (_currentUser == null) return;
@@ -139,15 +145,14 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         .collection('medicationSchedules');
 
     try {
-      // 1. Convert all medication entries to a list of Maps
       final List<Map<String, dynamic>> medicationsList = [];
       for (final entry in _medicationEntries) {
         if (entry.name.text.isNotEmpty && entry.times.isNotEmpty) {
           medicationsList.add({
             'name': entry.name.text,
             'dosage': entry.dosage.text,
-            // Convert TimeOfDay to a "HH:MM" string for Firestore
             'times': entry.times.map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}').toList(),
+            'frequency': entry.frequency,
           });
         }
       }
@@ -160,21 +165,17 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         return;
       }
 
-      // 2. Use a BATCH write to do multiple things at once
       WriteBatch batch = FirebaseFirestore.instance.batch();
 
-      // 3. Find the old active schedule (if one exists)
       QuerySnapshot oldSchedule = await schedulesCollection
           .where('isActive', isEqualTo: true)
           .limit(1)
           .get();
 
-      // 4. Deactivate the old schedule
       if (oldSchedule.docs.isNotEmpty) {
         batch.update(oldSchedule.docs.first.reference, {'isActive': false});
       }
 
-      // 5. Create the new schedule document
       DocumentReference newScheduleRef = schedulesCollection.doc();
       batch.set(newScheduleRef, {
         'scheduleName': _scheduleNameController.text.isNotEmpty
@@ -185,7 +186,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         'medications': medicationsList,
       });
 
-      // 6. Commit all changes to Firebase
       await batch.commit();
 
       if (mounted) {
@@ -289,7 +289,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     );
   }
 
-  // This widget builds one "row" for a single medication
   Widget _buildMedicationFormRow(_MedicationEntry entry, int index) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16.0),
@@ -321,6 +320,38 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
             ),
             const SizedBox(height: 16),
 
+            // --- 3. ADDED FREQUENCY CHIPS ---
+            const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold)),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: ['Daily', 'Weekly', 'Custom'].map((String value) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ChoiceChip(
+                      label: Text(value),
+                      selected: entry.frequency == value,
+                      onSelected: (bool selected) {
+                        if (selected) {
+                          setState(() {
+                            // This updates the frequency for THIS specific entry
+                            _medicationEntries[index].frequency = value;
+                          });
+                        }
+                      },
+                      selectedColor: Constants.darkblue,
+                      backgroundColor: Constants.lightBlue.withOpacity(0.5),
+                      labelStyle: TextStyle(
+                        color: entry.frequency == value ? Colors.white : Constants.darkGrey,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // --- Times ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -342,15 +373,22 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               }).toList(),
             ),
 
-            // --- Remove Row Button ---
-            if (index > 0) // Don't allow removing the first row
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => _removeMedicationRow(index),
-                  child: const Text('Remove', style: TextStyle(color: Colors.red)),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _medicationEntries.length > 1
+                    ? () => _removeMedicationRow(index)
+                    : null,
+                child: Text(
+                  'Remove',
+                  style: TextStyle(
+                    color: _medicationEntries.length > 1
+                        ? Colors.red
+                        : Colors.grey,
+                  ),
                 ),
               ),
+            ),
           ],
         ),
       ),

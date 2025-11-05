@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
-// --- (Gradient constants) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -15,7 +14,6 @@ const kRedGradient = LinearGradient(
   begin: Alignment.centerLeft,
   end: Alignment.centerRight,
 );
-// ------------------------------
 
 class EditSingleMedicationPage extends StatefulWidget {
   final String scheduleId;
@@ -36,8 +34,8 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
   final _nameController = TextEditingController();
   final _dosageController = TextEditingController();
   List<TimeOfDay> _times = [];
-
-  late String _originalName; // To find the pill in the array
+  String _frequency = 'Daily';
+  late String _originalName;
   bool _isLoading = false;
 
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
@@ -49,7 +47,6 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
   void initState() {
     super.initState();
 
-    // Set the path to the active schedule document
     _scheduleDocRef = FirebaseFirestore.instance
         .collection('artifacts')
         .doc(_appId)
@@ -58,17 +55,17 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
         .collection('medicationSchedules')
         .doc(widget.scheduleId);
 
-    // Pre-fill the form with the medication data
     _originalName = widget.medicationData['name'] ?? 'N/A';
     _nameController.text = _originalName;
     _dosageController.text = widget.medicationData['dosage'] ?? '';
+    _frequency = widget.medicationData['frequency'] ?? 'Daily';
     _times = (widget.medicationData['times'] as List<dynamic>? ?? [])
         .map((timeStr) {
       try {
         final parts = (timeStr as String).split(':');
         return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
       } catch (e) {
-        return TimeOfDay.now(); // Fallback
+        return TimeOfDay.now();
       }
     })
         .toList();
@@ -81,7 +78,6 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     super.dispose();
   }
 
-  // --- (Reusable Gradient Button) ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
@@ -89,7 +85,6 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     required Gradient gradient,
     double verticalPadding = 16.0,
   }) {
-    // ... (This function is correct, no changes needed)
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -145,7 +140,6 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     });
   }
 
-  // --- (This is the new "Save" logic) ---
   Future<void> _updateMedication() async {
     if (!_formKey.currentState!.validate() || _times.isEmpty) {
       if (_times.isEmpty) {
@@ -158,20 +152,18 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     setState(() { _isLoading = true; });
 
     try {
-      // Create the new medication map
       final newMedData = {
         'name': _nameController.text,
         'dosage': _dosageController.text,
         'times': _times.map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}').toList(),
+        'frequency': _frequency,
       };
 
-      // Get the current schedule document
       final doc = await _scheduleDocRef.get();
       if (!doc.exists) {
         throw Exception("Schedule document not found.");
       }
 
-      // Get the full list of medications
       final allMeds = List<Map<String, dynamic>>.from(
           (doc.data() as Map<String, dynamic>)['medications'] ?? []);
 
@@ -207,6 +199,72 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     }
   }
 
+  // --- 4. NEW "Delete" LOGIC ---
+  Future<void> _deleteMedication() async {
+    setState(() { _isLoading = true; });
+
+    try {
+      // Get the current schedule document
+      final doc = await _scheduleDocRef.get();
+      if (!doc.exists) {
+        throw Exception("Schedule document not found.");
+      }
+
+      final allMeds = List<Map<String, dynamic>>.from(
+          (doc.data() as Map<String, dynamic>)['medications'] ?? []);
+
+      // Remove the pill we are editing
+      allMeds.removeWhere((m) => m['name'] == _originalName);
+
+      // Update the entire 'medications' array in Firestore
+      await _scheduleDocRef.update({'medications': allMeds});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Medication deleted.')),
+        );
+        Navigator.pop(context); // Go back
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() { _isLoading = false; });
+      }
+    }
+  }
+
+  void _showDeleteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Medication?'),
+          content: Text('Are you sure you want to delete "${_nameController.text}"?'),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+                _deleteMedication(); // Call the delete function
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+  // -------------------------
+
   @override
   Widget build(BuildContext context) {
     return GradientScaffold(
@@ -235,6 +293,37 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
               TextFormField(
                 controller: _dosageController,
                 decoration: const InputDecoration(labelText: 'Dosage'),
+              ),
+              const SizedBox(height: 24),
+
+              // --- 5. ADDED FREQUENCY CHIPS ---
+              const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: ['Daily', 'Weekly', 'Custom'].map((String value) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: ChoiceChip(
+                        label: Text(value),
+                        selected: _frequency == value,
+                        onSelected: (bool selected) {
+                          if (selected) {
+                            setState(() {
+                              _frequency = value;
+                            });
+                          }
+                        },
+                        selectedColor: Constants.darkblue,
+                        backgroundColor: Constants.lightBlue.withOpacity(0.5),
+                        labelStyle: TextStyle(
+                          color: _frequency == value ? Colors.white : Constants.darkGrey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -269,6 +358,15 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
                 text: 'Save Changes',
                 icon: Icons.save,
                 gradient: kPrimaryGradient,
+              ),
+
+              const SizedBox(height: 16),
+
+              _buildGradientButton(
+                onPressed: _showDeleteConfirmation, // Shows confirmation
+                text: 'Delete Medication',
+                icon: Icons.delete_forever,
+                gradient: kRedGradient,
               ),
             ],
           ),
