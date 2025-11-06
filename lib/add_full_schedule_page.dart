@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
+
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -28,6 +29,7 @@ class _MedicationEntry {
         frequency = 'Daily';
 }
 
+
 class AddFullSchedulePage extends StatefulWidget {
   const AddFullSchedulePage({super.key});
 
@@ -46,6 +48,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
+
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
@@ -53,7 +56,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     required Gradient gradient,
     double verticalPadding = 16.0,
   }) {
-    final bool isEnabled = onPressed != null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -63,23 +65,15 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          disabledBackgroundColor: Colors.transparent,
-          elevation: 5,
         ),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: isEnabled
-                ? gradient
-                : LinearGradient(
-              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
+            gradient: gradient,
             borderRadius: BorderRadius.circular(12.0),
           ),
           child: Container(
             width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: verticalPadding),
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
             alignment: Alignment.center,
             child: (icon != null)
                 ? Row(
@@ -96,7 +90,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
       ),
     );
   }
-
 
   void _addMedicationRow() {
     setState(() {
@@ -124,6 +117,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
       });
     }
   }
+
 
   void _removeTime(int entryIndex, TimeOfDay time) {
     setState(() {
@@ -187,6 +181,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
       });
 
       await batch.commit();
+
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -334,7 +329,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       onSelected: (bool selected) {
                         if (selected) {
                           setState(() {
-                            // This updates the frequency for THIS specific entry
                             _medicationEntries[index].frequency = value;
                           });
                         }
