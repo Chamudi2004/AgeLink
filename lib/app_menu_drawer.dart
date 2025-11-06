@@ -2,31 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// Make sure you have these files and the imports are correct
 import 'family_permissions_page.dart';
 import 'device_page.dart';
 import 'settings_page.dart';
 import 'help_page.dart';
 import 'edit_profile_page.dart';
+import 'constants.dart'; // Make sure you import constants.dart for kAppId
 
 class AppMenuDrawer extends StatelessWidget {
   const AppMenuDrawer({super.key});
 
-  final String appId = const String.fromEnvironment(
-      'app_id', defaultValue: 'default-app-id');
+  // Use kAppId from constants.dart
+  final String appId = kAppId;
 
   void _logout(BuildContext context) async {
     Navigator.of(context).pop();
-
-    // Show a message
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Logging out...')),
     );
-
-    // Sign out
     await FirebaseAuth.instance.signOut();
   }
 
-  // Helper widget for menu items
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
@@ -34,7 +31,6 @@ class AppMenuDrawer extends StatelessWidget {
     Color? color,
   }) {
     final itemColor = color ?? Colors.black87;
-
     return ListTile(
       leading: Icon(icon, color: itemColor),
       title: Text(
@@ -47,12 +43,8 @@ class AppMenuDrawer extends StatelessWidget {
     );
   }
 
-  // Helper function to handle navigation
   void _navigateTo(BuildContext context, Widget page) {
-    // 1. Close the drawer
-    Navigator.pop(context);
-
-    // 2. Navigate to the new page
+    Navigator.pop(context); // Close the drawer
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => page),
@@ -67,10 +59,16 @@ class AppMenuDrawer extends StatelessWidget {
       return const Drawer(child: Center(child: Text('Not logged in.')));
     }
 
-    // UPDATED: Using the simple path we fixed before
+    // --- 1. THIS IS THE FIX ---
+    // This is the CORRECT path that your EditProfilePage saves to.
     final userDocRef = FirebaseFirestore.instance
+        .collection('artifacts')
+        .doc(appId)
         .collection('users')
-        .doc(user.uid);
+        .doc(user.uid)
+        .collection('profile')
+        .doc('details');
+    // --- END OF FIX ---
 
     return Drawer(
       child: Container(
@@ -108,19 +106,28 @@ class AppMenuDrawer extends StatelessWidget {
                 ),
               ),
 
-              // 2. Profile Section
+              // --- 2. THIS IS THE SECOND FIX ---
+              // This StreamBuilder logic correctly handles all cases
               StreamBuilder<DocumentSnapshot>(
                 stream: userDocRef.snapshots(),
                 builder: (context, snapshot) {
-                  String name = 'Loading...';
+                  String name;
                   String email = user.email ?? 'No email';
+                  String? profileImageUrl;
 
-                  if (snapshot.connectionState == ConnectionState.active && snapshot.hasData && snapshot.data!.exists) {
-                    final data = snapshot.data!.data() as Map<String, dynamic>;
-                    name = data['name'] ?? 'Caregiver User'; // Use fallback
-                    email = data['email'] ?? user.email!; // Use fallback
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    name = 'Loading...';
                   } else if (snapshot.hasError) {
-                    name = 'Error loading name';
+                    name = 'Error';
+                  } else if (!snapshot.hasData || !snapshot.data!.exists) {
+                    // Handles new users or Google users who haven't edited profile
+                    name = user.displayName ?? 'New User';
+                  } else {
+                    // Handles users who have data
+                    final data = snapshot.data!.data() as Map<String, dynamic>;
+                    name = data['name'] ?? user.displayName ?? 'Caregiver User';
+                    email = data['email'] ?? user.email!;
+                    profileImageUrl = data['profileImageUrl'];
                   }
 
                   return Padding(
@@ -129,20 +136,25 @@ class AppMenuDrawer extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Avatar
-                        const CircleAvatar(
+
+                        CircleAvatar(
                           radius: 32,
                           backgroundColor: Colors.white,
-                          child: Icon(
+                          backgroundImage: (profileImageUrl != null)
+                              ? NetworkImage(profileImageUrl)
+                              : null,
+                          child: (profileImageUrl == null)
+                              ? const Icon(
                             Icons.person_outline,
                             size: 36,
                             color: Color(0xFF0D47A1),
-                          ),
+                          )
+                              : null,
                         ),
                         const SizedBox(height: 16),
-                        // Name (from Firestore)
+
                         Text(
-                          name,
+                          name, // This will now be correct
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -160,12 +172,7 @@ class AppMenuDrawer extends StatelessWidget {
                         const SizedBox(height: 8),
                         InkWell(
                           onTap: () {
-                            Navigator.of(context).pop(); // Close the drawer
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => const EditProfilePage(),
-                              ),
-                            );
+                            _navigateTo(context, const EditProfilePage());
                           },
                           child: const Text(
                             'Edit Profile',
@@ -181,13 +188,13 @@ class AppMenuDrawer extends StatelessWidget {
                   );
                 },
               ),
+              // --- END OF FIX ---
 
               // 3. Menu Items
               _buildMenuItem(
                 icon: Icons.people_outline,
                 title: 'Family & Permissions',
                 onTap: () {
-                  // UPDATED
                   _navigateTo(context, const FamilyPermissionsPage());
                 },
               ),
@@ -195,7 +202,6 @@ class AppMenuDrawer extends StatelessWidget {
                 icon: Icons.devices_other_outlined,
                 title: 'Device',
                 onTap: () {
-                  // UPDATED
                   _navigateTo(context, const DevicePage());
                 },
               ),
@@ -203,7 +209,6 @@ class AppMenuDrawer extends StatelessWidget {
                 icon: Icons.settings_outlined,
                 title: 'Settings',
                 onTap: () {
-                  // UPDATED
                   _navigateTo(context, const SettingsPage());
                 },
               ),
@@ -215,7 +220,6 @@ class AppMenuDrawer extends StatelessWidget {
                 icon: Icons.help_outline,
                 title: 'Help',
                 onTap: () {
-                  // UPDATED
                   _navigateTo(context, const HelpPage());
                 },
               ),
