@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'schedule_sync_service.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
@@ -183,7 +182,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
 
       await batch.commit();
 
-      await ScheduleSyncService.triggerSync();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
