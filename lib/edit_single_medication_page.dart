@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'schedule_sync_service.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
@@ -180,6 +181,8 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
       // Update the entire 'medications' array in Firestore
       await _scheduleDocRef.update({'medications': allMeds});
 
+      await ScheduleSyncService.triggerSync();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Medication updated!')),
@@ -204,7 +207,6 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     setState(() { _isLoading = true; });
 
     try {
-      // Get the current schedule document
       final doc = await _scheduleDocRef.get();
       if (!doc.exists) {
         throw Exception("Schedule document not found.");
@@ -213,11 +215,15 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
       final allMeds = List<Map<String, dynamic>>.from(
           (doc.data() as Map<String, dynamic>)['medications'] ?? []);
 
-      // Remove the pill we are editing
       allMeds.removeWhere((m) => m['name'] == _originalName);
 
-      // Update the entire 'medications' array in Firestore
+      // Update Firestore with the smaller list
       await _scheduleDocRef.update({'medications': allMeds});
+
+      // --- THIS IS THE FIX ---
+      // Instead of trying to sync the list from this page,
+      // just tell the service to trigger a new, clean sync.
+      await ScheduleSyncService.triggerSync();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
