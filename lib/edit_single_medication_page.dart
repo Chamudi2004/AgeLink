@@ -1,6 +1,9 @@
+// lib/edit_single_medication_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'schedule_sync_service.dart'; // <-- 1. ADD THIS IMPORT
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
@@ -180,6 +183,12 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
       // Update the entire 'medications' array in Firestore
       await _scheduleDocRef.update({'medications': allMeds});
 
+      // --- 2. ADD THIS BLOCK (FIRE AND FORGET) ---
+      ScheduleSyncService.triggerSync().catchError((e) {
+        print('RTDB background sync failed: $e');
+      });
+      // --- END OF ADDITION ---
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Medication updated!')),
@@ -217,6 +226,11 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
       // Update Firestore with the smaller list
       await _scheduleDocRef.update({'medications': allMeds});
 
+      // --- 3. ADD THIS BLOCK (FIRE AND FORGET) ---
+      ScheduleSyncService.triggerSync().catchError((e) {
+        print('RTDB background sync failed: $e');
+      });
+      // --- END OF ADDITION ---
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

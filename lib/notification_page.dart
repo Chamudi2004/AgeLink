@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// lib/notification_page.dart
 
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart'; // <-- 1. ADD THIS
+import 'package:firebase_database/firebase_database.dart'; // <-- 1. ADD THIS
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DoseNotification {
   final String docId;
@@ -9,6 +11,7 @@ class DoseNotification {
   final String time;
   final DateTime date;
   final bool isTaken;
+  final String reminderState;
 
   DoseNotification({
     required this.docId,
@@ -16,21 +19,29 @@ class DoseNotification {
     required this.time,
     required this.date,
     required this.isTaken,
+    required this.reminderState,
   });
 
-  factory DoseNotification.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory DoseNotification.fromRTDB(DataSnapshot snapshot) {
+    final data = Map<String, dynamic>.from(snapshot.value as Map);
 
-    DateTime doseDate = (data['date'] is Timestamp)
-        ? (data['date'] as Timestamp).toDate()
-        : DateTime.now();
+    DateTime doseDate = DateTime.now();
+    if (data['date'] != null && data['date'] is int) {
+      doseDate = DateTime.fromMillisecondsSinceEpoch(data['date']);
+    } else if (data['confirmed_at_timestamp'] != null && data['confirmed_at_timestamp'] is int) {
+      doseDate = DateTime.fromMillisecondsSinceEpoch(data['confirmed_at_timestamp']);
+    }
+
+    String state = data['reminder_state'] ?? 'Missed';
+    bool taken = (state == 'Green' || state == 'Orange' || state == 'Red');
 
     return DoseNotification(
-      docId: doc.id,
-      medicationName: data['medicationName'] ?? 'Unknown Medication',
-      time: data['time'] ?? 'N/A',
+      docId: snapshot.key ?? '',
+      medicationName: data['medicine_name'] ?? 'Unknown Medication',
+      time: data['confirmed_at'] ?? 'N/A',
       date: doseDate,
-      isTaken: data['isTaken'] ?? false,
+      isTaken: taken,
+      reminderState: state,
     );
   }
 }
@@ -44,23 +55,21 @@ class NotificationPage extends StatefulWidget {
 }
 
 class _NotificationPageState extends State<NotificationPage> {
-
-  final String appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final String? userId = FirebaseAuth.instance.currentUser?.uid;
 
-  CollectionReference? _alertsCollection;
+  DatabaseReference? _alertsRef;
 
   @override
   void initState() {
     super.initState();
 
     if (userId != null) {
-      _alertsCollection = FirebaseFirestore.instance
-          .collection('artifacts')
-          .doc(appId)
-          .collection('users')
-          .doc(userId)
-          .collection('doses');
+      // --- 2. THIS IS THE FIX ---
+      _alertsRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('reminders/$userId/confirmation');
+      // --- END OF FIX ---
     }
   }
 
@@ -73,15 +82,12 @@ class _NotificationPageState extends State<NotificationPage> {
     if (userId == null) {
       return const Center(child: Text("Please log in to view alerts.", style: TextStyle(fontSize: 18)));
     }
-    if (_alertsCollection == null) {
+    if (_alertsRef == null) {
       return const Center(child: Text("Error: Alerts collection path is invalid.", style: TextStyle(fontSize: 18)));
     }
 
-    // --- (FIX: REMOVED THE Scaffold AND AppBar WIDGETS) ---
-    // The GradientScaffold from home_page.dart will provide the background and app bar.
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: _alertsCollection!.orderBy('date', descending: true).snapshots(),
+    return StreamBuilder<DatabaseEvent>(
+      stream: _alertsRef!.orderByChild('date').onValue,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -91,7 +97,17 @@ class _NotificationPageState extends State<NotificationPage> {
           return Center(child: Text('Error loading alerts: ${snapshot.error}'));
         }
 
-        final alerts = snapshot.data!.docs.map((doc) => DoseNotification.fromFirestore(doc)).toList();
+        final List<DoseNotification> alerts = [];
+        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          for (final child in snapshot.data!.snapshot.children) {
+            try {
+              alerts.add(DoseNotification.fromRTDB(child));
+            } catch (e) {
+              print('Error parsing notification: $e');
+            }
+          }
+          alerts.sort((a, b) => b.date.compareTo(a.date));
+        }
 
         if (alerts.isEmpty) {
           return const Center(
@@ -106,7 +122,6 @@ class _NotificationPageState extends State<NotificationPage> {
           );
         }
 
-        // The list will now be the main widget returned by this page
         return ListView.builder(
           padding: const EdgeInsets.all(8.0),
           itemCount: alerts.length,
@@ -115,7 +130,7 @@ class _NotificationPageState extends State<NotificationPage> {
 
             final statusColor = notification.isTaken ? Colors.green.shade600 : Colors.red.shade600;
             final statusIcon = notification.isTaken ? Icons.check_circle_outline : Icons.cancel_outlined;
-            final statusText = notification.isTaken ? 'Taken' : 'Missed';
+            final statusText = notification.isTaken ? 'Taken (${notification.reminderState})' : 'Missed';
 
             return Card(
               elevation: 2,
