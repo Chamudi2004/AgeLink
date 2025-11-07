@@ -1,3 +1,5 @@
+// lib/app_menu_drawer.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -95,6 +97,7 @@ class AppMenuDrawer extends StatelessWidget {
                     Image.asset(
                       'assets/agelink_logo.png',
                       height: 24,
+                      errorBuilder: (context, error, stackTrace) => const Text('AgeLink'), // Fallback text
                     ),
                     IconButton(
                       icon: const Icon(Icons.close, color: Color(0xFF0D47A1)),
@@ -120,10 +123,8 @@ class AppMenuDrawer extends StatelessWidget {
                   } else if (snapshot.hasError) {
                     name = 'Error';
                   } else if (!snapshot.hasData || !snapshot.data!.exists) {
-                    // Handles new users or Google users who haven't edited profile
                     name = user.displayName ?? 'New User';
                   } else {
-                    // Handles users who have data
                     final data = snapshot.data!.data() as Map<String, dynamic>;
                     name = data['name'] ?? user.displayName ?? 'Caregiver User';
                     email = data['email'] ?? user.email!;

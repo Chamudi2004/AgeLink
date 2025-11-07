@@ -1,23 +1,20 @@
+// lib/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart'; // <-- 1. ADD THIS
+import 'package:firebase_database/firebase_database.dart'; // <-- 1. ADD THIS
 import 'constants.dart';
 import 'pair_device_page.dart';
-// We need to import this to get the gradient button
 import 'medication_schedule_page.dart' show kPrimaryGradient;
-import 'package:intl/intl.dart'; // Import for date formatting
+import 'package:intl/intl.dart';
 
-// Helper class for today's doses
 class _TodayDose {
-  final String time; // e.g., "08:00"
+  final String time;
   final String name;
   final String dosage;
-
-  _TodayDose({
-    required this.time,
-    required this.name,
-    required this.dosage,
-  });
+  _TodayDose({ required this.time, required this.name, required this.dosage });
 }
 
 class HomeScreen extends StatefulWidget {
@@ -29,20 +26,20 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _currentDate = 'Loading...';
-  String _currentDayOfWeek = ''; // e.g., "Monday"
+  String _currentDayOfWeek = '';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // --- NEW: Reusable Gradient Button ---
+  late final DatabaseReference _deviceStatusRef; // This was already correct
+
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
     IconData? icon,
     required Gradient gradient,
   }) {
-    // ... (This function is correct, no changes)
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -83,16 +80,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     DateTime now = DateTime.now();
     _currentDate = _formatDate(now);
-    // Get the full day name, e.g., "Monday"
     _currentDayOfWeek = DateFormat('EEEE').format(now);
+
+    // --- 2. THIS IS THE FIX ---
+    if (_currentUser != null) {
+      _deviceStatusRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('device_status/${_currentUser!.uid}');
+    }
+    // --- END OF FIX ---
   }
 
   String _formatDate(DateTime date) {
-    // Use intl package for easier formatting
     return DateFormat('EEEE, MMMM d').format(date);
   }
-
-  // (REMOVED _getDayOfWeek and _getMonth as _formatDate now handles it)
 
   String _formatTime12h(String time24h) {
     try {
@@ -107,7 +109,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMedicationItem(_TodayDose dose) {
-    // ... (This function is correct, no changes)
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -158,14 +159,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- UPDATED: New collection path ---
     final String schedulesCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- Gradient Button ---
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: _buildGradientButton(
@@ -178,10 +177,91 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
               text: 'Connect Device',
-              icon: Icons.device_hub, // Example icon
+              icon: Icons.device_hub,
               gradient: kPrimaryGradient,
             ),
           ),
+
+          if (_currentUser != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: StreamBuilder(
+                stream: _deviceStatusRef.onValue,
+                builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: Text("Connecting to device..."));
+                  }
+                  if (snapshot.hasError) {
+                    return const Center(child: Text("Error connecting to device."));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+                    return const Center(child: Text("Device not found."));
+                  }
+
+                  // This safe cast is from our previous fix
+                  final dataMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                  final data = <String, dynamic>{};
+                  dataMap.forEach((key, value) {
+                    data[key.toString()] = value;
+                  });
+
+                  final bool isOnline = data['isOnline'] ?? false;
+                  final num batteryNum = data['battery'] ?? 0;
+                  final int battery = batteryNum.toInt();
+
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isOnline ? Colors.green.shade50 : Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isOnline ? Colors.green.shade300 : Colors.red.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              isOnline ? Icons.wifi : Icons.wifi_off,
+                              color: isOnline ? Colors.green : Colors.red,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isOnline ? 'Device Connected' : 'Device Offline',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              '$battery%',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              battery > 75 ? Icons.battery_full :
+                              battery > 20 ? Icons.battery_std :
+                              Icons.battery_alert,
+                              color: battery > 20 ? Colors.green : Colors.red,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+
           const SizedBox(height: 16),
 
           // TODAY MEDICATION SCHEDULE HEADER
@@ -208,13 +288,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // --- UPDATED: MEDICATION LIST ---
+          // MEDICATION LIST
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: Colors.white, // This white card is correct
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
@@ -225,11 +305,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              // --- UPDATED: StreamBuilder for new logic ---
               child: StreamBuilder<QuerySnapshot>(
                 stream: _firestore
                     .collection(schedulesCollectionPath)
-                    .where('isActive', isEqualTo: true) // Get all active schedules
+                    .where('isActive', isEqualTo: true)
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -247,35 +326,25 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // --- (THIS IS THE NEW LOGIC) ---
                   final List<_TodayDose> todayDoses = [];
 
-                  // 1. Loop through all active SCHEDULES
                   for (var scheduleDoc in snapshot.data!.docs) {
                     final medications = List<Map<String, dynamic>>.from(scheduleDoc.get('medications') ?? []);
 
-                    // 2. Loop through all PILLS in that schedule
                     for (final med in medications) {
                       final String freq = med['frequency'] ?? 'Daily';
                       bool shouldAddToday = false;
 
-                      // 3. Check the frequency
                       if (freq == 'Daily') {
                         shouldAddToday = true;
                       } else if (freq == 'Weekly') {
-                        // TODO: This assumes you save the "day" in the 'Custom' field
-                        // For now, let's just check against the current day name
-                        // This is a placeholder - you'll need to store which day
-                        // e.g., if (med['dayOfWeek'] == _currentDayOfWeek)
-                        // This is a simple example, assuming "Weekly" means today
-                        if (med['dayOfWeek'] == _currentDayOfWeek) { // Example check
+                        if (med['dayOfWeek'] == _currentDayOfWeek) {
                           shouldAddToday = true;
                         }
                       } else if (freq == 'Custom') {
                         // TODO: Add logic to check custom dates
                       }
 
-                      // 4. If it's for today, add its times
                       if (shouldAddToday) {
                         final times = List<String>.from(med['times'] ?? []);
                         for (final time in times) {
@@ -288,9 +357,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       }
                     }
                   }
-                  // --- (END OF NEW LOGIC) ---
 
-                  // Sort the final list by time
                   todayDoses.sort((a, b) => a.time.compareTo(b.time));
 
                   if (todayDoses.isEmpty) {
@@ -301,7 +368,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // Build the list view
                   return Column(
                     children: [
                       for (int i = 0; i < todayDoses.length; i++)
