@@ -1,20 +1,27 @@
 // lib/home_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// 1. REMOVED FIRESTORE
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart'; // <-- 1. ADD THIS
-import 'package:firebase_database/firebase_database.dart'; // <-- 1. ADD THIS
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'constants.dart';
-import 'pair_device_page.dart';
 import 'medication_schedule_page.dart' show kPrimaryGradient;
 import 'package:intl/intl.dart';
 
+import 'pair_device_page.dart';
+
+// Helper class for today's doses
 class _TodayDose {
-  final String time;
+  final String time; // e.g., "08:00"
   final String name;
   final String dosage;
-  _TodayDose({ required this.time, required this.name, required this.dosage });
+
+  _TodayDose({
+    required this.time,
+    required this.name,
+    required this.dosage,
+  });
 }
 
 class HomeScreen extends StatefulWidget {
@@ -26,13 +33,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _currentDate = 'Loading...';
-  String _currentDayOfWeek = '';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  late final DatabaseReference _deviceStatusRef; // This was already correct
+  // --- 2. UPDATED RTDB REFERENCES ---
+  late final DatabaseReference _remindersRef;
+  late final DatabaseReference _medsRef;
+  // --- END OF FIX ---
 
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
@@ -80,14 +87,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     DateTime now = DateTime.now();
     _currentDate = _formatDate(now);
-    _currentDayOfWeek = DateFormat('EEEE').format(now);
 
-    // --- 2. THIS IS THE FIX ---
+    // --- 3. INITIALIZE RTDB PATHS ---
     if (_currentUser != null) {
-      _deviceStatusRef = FirebaseDatabase.instanceFor(
+      final db = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
-      ).ref('device_status/${_currentUser!.uid}');
+      );
+      // This points to the parent folder for device status
+      _remindersRef = db.ref('reminders/${_currentUser!.uid}');
+      // This points to the medication list
+      _medsRef = db.ref('reminders/${_currentUser!.uid}/schedule/med_times');
     }
     // --- END OF FIX ---
   }
@@ -159,8 +169,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String schedulesCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
-
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,11 +190,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
+          // --- 4. READ DEVICE STATUS FROM RTDB ---
           if (_currentUser != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: StreamBuilder(
-                stream: _deviceStatusRef.onValue,
+                stream: _remindersRef.onValue, // Listen to the parent 'reminders' node
                 builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: Text("Connecting to device..."));
@@ -198,16 +207,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     return const Center(child: Text("Device not found."));
                   }
 
-                  // This safe cast is from our previous fix
+                  // Safely cast the data
                   final dataMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
                   final data = <String, dynamic>{};
                   dataMap.forEach((key, value) {
                     data[key.toString()] = value;
                   });
 
-                  final bool isOnline = data['isOnline'] ?? false;
-                  final num batteryNum = data['battery'] ?? 0;
-                  final int battery = batteryNum.toInt();
+                  // Get data from the 'device' and 'schedule' sub-nodes
+                  final deviceData = data['device'] as Map<dynamic, dynamic>? ?? {};
+                  final scheduleData = data['schedule'] as Map<dynamic, dynamic>? ?? {};
+
+                  final bool isOnline = (scheduleData['current_status'] ?? 'OFFLINE') != 'OFFLINE';
+                  final num batteryNum = deviceData['volume'] ?? 0; // Use 'volume' as battery
+                  final int battery = (batteryNum * 100).toInt(); // Convert 0.1 to 10%
 
                   return Container(
                     padding: const EdgeInsets.all(12),
@@ -261,6 +274,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
             ),
+          // --- END OF FIX ---
 
           const SizedBox(height: 16),
 
@@ -288,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // MEDICATION LIST
+          // --- 5. READ SCHEDULE FROM RTDB ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
@@ -305,11 +319,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _firestore
-                    .collection(schedulesCollectionPath)
-                    .where('isActive', isEqualTo: true)
-                    .snapshots(),
+              child: StreamBuilder<DatabaseEvent>(
+                stream: _medsRef.onValue, // Listen to the med_times path
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -318,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     return const Center(
                         child: Text('Error loading schedule.'));
                   }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16.0),
                       child: Center(
@@ -326,38 +337,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  final List<_TodayDose> todayDoses = [];
+                  // Parse the Map of medications
+                  final medTimesMap = snapshot.data!.snapshot.value as Map;
+                  final todayDoses = medTimesMap.entries.map((entry) {
+                    final med = Map<String, dynamic>.from(entry.value as Map);
+                    return _TodayDose(
+                      time: med['time'] ?? '00:00',
+                      name: med['name'] ?? 'N/A',
+                      dosage: med['dosage'] ?? 'N/A',
+                    );
+                  }).toList();
 
-                  for (var scheduleDoc in snapshot.data!.docs) {
-                    final medications = List<Map<String, dynamic>>.from(scheduleDoc.get('medications') ?? []);
-
-                    for (final med in medications) {
-                      final String freq = med['frequency'] ?? 'Daily';
-                      bool shouldAddToday = false;
-
-                      if (freq == 'Daily') {
-                        shouldAddToday = true;
-                      } else if (freq == 'Weekly') {
-                        if (med['dayOfWeek'] == _currentDayOfWeek) {
-                          shouldAddToday = true;
-                        }
-                      } else if (freq == 'Custom') {
-                        // TODO: Add logic to check custom dates
-                      }
-
-                      if (shouldAddToday) {
-                        final times = List<String>.from(med['times'] ?? []);
-                        for (final time in times) {
-                          todayDoses.add(_TodayDose(
-                            time: time,
-                            name: med['name'] ?? 'N/A',
-                            dosage: med['dosage'] ?? 'N/A',
-                          ));
-                        }
-                      }
-                    }
-                  }
-
+                  // Sort the final list by time
                   todayDoses.sort((a, b) => a.time.compareTo(b.time));
 
                   if (todayDoses.isEmpty) {
@@ -384,6 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+          // --- END OF FIX ---
           const SizedBox(height: 24),
         ],
       ),

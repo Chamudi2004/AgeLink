@@ -1,6 +1,9 @@
+// lib/pair_device_page.dart
+
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'ble_service.dart'; // <-- 1. Import the new service
 
 class PairDevicePage extends StatefulWidget {
   const PairDevicePage({super.key});
@@ -10,155 +13,224 @@ class PairDevicePage extends StatefulWidget {
 }
 
 class _PairDevicePageState extends State<PairDevicePage> {
-  final TextEditingController _deviceIdController = TextEditingController();
+  // 2. Create an instance of the service
+  final BleService _bleService = BleService();
+
+  // State variables
+  bool _isScanning = false;
+  List<ScanResult> _scanResults = [];
+  StreamSubscription? _scanSub;
   bool _isLoading = false;
 
-  // This is the function that saves the ID to Firestore
-  void _pairDevice() async {
-    final String deviceId = _deviceIdController.text.trim();
-    final User? currentUser = FirebaseAuth.instance.currentUser;
+  final _ssidController = TextEditingController();
+  final _passwordController = TextEditingController();
 
-    if (deviceId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a Device ID.')),
-      );
-      return;
-    }
+  @override
+  void initState() {
+    super.initState();
+    _bleService.listenToAdapterState(() {
+      if (mounted) {
+        _showBluetoothOffDialog();
+      }
+    });
+    _startScan();
+  }
 
-    if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Not logged in.')),
-      );
+  @override
+  void dispose() {
+    _scanSub?.cancel();
+    _bleService.dispose(); // 3. Dispose the service
+    _ssidController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _showBluetoothOffDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Bluetooth is Off'),
+        content: const Text('Please turn on Bluetooth to connect your device.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startScan() {
+    if (FlutterBluePlus.adapterStateNow != BluetoothAdapterState.on) {
+      _showBluetoothOffDialog();
       return;
     }
 
     setState(() {
-      _isLoading = true;
+      _isScanning = true;
+      _scanResults = [];
     });
 
+    _scanSub = _bleService.scanForDevices().listen((results) {
+      if (mounted) {
+        setState(() {
+          _scanResults = results;
+        });
+      }
+    }, onError: (e) {
+      print('Scan Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Scan Error: $e')));
+      }
+    });
+
+    Future.delayed(const Duration(seconds: 10), () {
+      if (mounted) {
+        _bleService.stopScan();
+        setState(() {
+          _isScanning = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _connectToDevice(BluetoothDevice device) async {
+    setState(() { _isLoading = true; });
+
     try {
-      // --- This is the key ---
-      // Save the device ID to the user's profile in Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid)
-          .update({
-        'pairedDeviceId': deviceId,
-      });
-      // -------------------------
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Device $deviceId paired successfully!')),
-      );
-
-      // Go back to the previous screen
-      Navigator.pop(context);
+      await _bleService.connectToDevice(device);
+      if (!mounted) return;
+      _showWifiDialog();
 
     } catch (e) {
+      print('Connection Error: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error pairing device: $e')),
+          SnackBar(content: Text('Failed to connect: $e'))
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if(mounted) {
+        setState(() { _isLoading = false; });
+      }
     }
+  }
+
+  Future<void> _sendWifiCredentials() async {
+    if (_ssidController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields.')),
+      );
+      return;
+    }
+
+    setState(() { _isLoading = true; });
+
+    try {
+      await _bleService.sendWifiCredentials(
+          _ssidController.text,
+          _passwordController.text
+      );
+      await _bleService.disconnect();
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close the WiFi dialog
+      Navigator.pop(context); // Go back to the home screen
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Device provisioned successfully!')),
+      );
+    } catch (e) {
+      print('Error sending credentials: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Could not send credentials.')),
+      );
+    } finally {
+      if(mounted) {
+        setState(() { _isLoading = false; });
+      }
+    }
+  }
+
+  void _showWifiDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter Home WiFi Credentials'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _ssidController,
+              decoration: const InputDecoration(labelText: 'WiFi Name (SSID)'),
+            ),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Password'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _bleService.disconnect();
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: _sendWifiCredentials,
+            child: const Text('Connect'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 1. Styled AppBar
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: BackButton(color: Colors.black87),
-        title: const Text(
-          'Connect Your Device',
-          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Pair Device'),
+        actions: [
+          IconButton(
+            icon: Icon(_isScanning ? Icons.stop : Icons.refresh),
+            onPressed: _startScan,
+          ),
+        ],
       ),
-      // 2. Gradient Background
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFFF0F4FF),
-              Colors.white,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+        children: [
+          Expanded(
+            child: _scanResults.isEmpty
+                ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (_isScanning) const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text('Scanning for "AgeLink" devices...'),
+                ],
+              ),
+            )
+                : ListView.builder(
+              itemCount: _scanResults.length,
+              itemBuilder: (context, index) {
+                var result = _scanResults[index];
+                return ListTile(
+                  title: Text(result.device.localName),
+                  subtitle: Text(result.device.remoteId.toString()),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _connectToDevice(result.device),
+                );
+              },
+            ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-              const Text(
-                'Enter the unique ID from your AgeLink device. You can find this on the back of the device or in its settings.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.black54),
-              ),
-              const SizedBox(height: 30),
-
-              // 3. Text Field for the ID
-              TextField(
-                controller: _deviceIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Device ID (e.g., AgeLink_00987)',
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              // 4. Loading indicator or Gradient Button
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ClipRRect(
-                borderRadius: BorderRadius.circular(12.0),
-                child: ElevatedButton(
-                  onPressed: _pairDevice,
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                  ),
-                  child: Ink(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12.0),
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF1E88E5), // Blue
-                          Color(0xFF0D47A1), // Darker Blue
-                        ],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'Pair Device',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
