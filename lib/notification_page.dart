@@ -1,8 +1,8 @@
 // lib/notification_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // <-- 1. ADD THIS
-import 'package:firebase_database/firebase_database.dart'; // <-- 1. ADD THIS
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class DoseNotification {
@@ -22,6 +22,8 @@ class DoseNotification {
     required this.reminderState,
   });
 
+  // --- THIS IS THE FIX ---
+  // The factory is updated to be type-safe
   factory DoseNotification.fromRTDB(DataSnapshot snapshot) {
     final data = Map<String, dynamic>.from(snapshot.value as Map);
 
@@ -32,18 +34,23 @@ class DoseNotification {
       doseDate = DateTime.fromMillisecondsSinceEpoch(data['confirmed_at_timestamp']);
     }
 
-    String state = data['reminder_state'] ?? 'Missed';
+    // By calling .toString(), we safely handle both int and String types
+    String state = (data['reminder_state'] ?? 'Missed').toString();
+    String medName = (data['medicine_name'] ?? 'Unknown Medication').toString();
+    String confirmedAt = (data['confirmed_at'] ?? 'N/A').toString();
+
     bool taken = (state == 'Green' || state == 'Orange' || state == 'Red');
 
     return DoseNotification(
       docId: snapshot.key ?? '',
-      medicationName: data['medicine_name'] ?? 'Unknown Medication',
-      time: data['confirmed_at'] ?? 'N/A',
+      medicationName: medName,
+      time: confirmedAt, // Now it's guaranteed to be a String
       date: doseDate,
       isTaken: taken,
       reminderState: state,
     );
   }
+// --- END OF FIX ---
 }
 
 // Notification Page Widget
@@ -64,12 +71,11 @@ class _NotificationPageState extends State<NotificationPage> {
     super.initState();
 
     if (userId != null) {
-      // --- 2. THIS IS THE FIX ---
+      // Point to the RTDB path and include the URL
       _alertsRef = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
       ).ref('reminders/$userId/confirmation');
-      // --- END OF FIX ---
     }
   }
 
@@ -99,6 +105,7 @@ class _NotificationPageState extends State<NotificationPage> {
 
         final List<DoseNotification> alerts = [];
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          // This logic is now safe and correct
           for (final child in snapshot.data!.snapshot.children) {
             try {
               alerts.add(DoseNotification.fromRTDB(child));

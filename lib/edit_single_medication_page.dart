@@ -1,12 +1,13 @@
 // lib/edit_single_medication_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'schedule_sync_service.dart'; // <-- 1. ADD THIS IMPORT
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
+// --- (Gradients are unchanged) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -19,7 +20,8 @@ const kRedGradient = LinearGradient(
 );
 
 class EditSingleMedicationPage extends StatefulWidget {
-  final String scheduleId;
+  // --- scheduleId is now the RTDB *key* ---
+  final String scheduleId; // e.g., "Insulin_1030"
   final Map<String, dynamic> medicationData;
 
   const EditSingleMedicationPage({
@@ -37,41 +39,39 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
   final _nameController = TextEditingController();
   final _dosageController = TextEditingController();
   List<TimeOfDay> _times = [];
-  String _frequency = 'Daily';
-  late String _originalName;
+  String _frequency = 'Daily'; // This is no longer in the DB, but we leave it for the UI
+  late String _originalKey;
   bool _isLoading = false;
 
-  final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  late final DocumentReference _scheduleDocRef;
+  // --- Point to RTDB ---
+  late final DatabaseReference _medsRef;
 
   @override
   void initState() {
     super.initState();
 
-    _scheduleDocRef = FirebaseFirestore.instance
-        .collection('artifacts')
-        .doc(_appId)
-        .collection('users')
-        .doc(_currentUser!.uid)
-        .collection('medicationSchedules')
-        .doc(widget.scheduleId);
+    if (_currentUser != null) {
+      _medsRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('reminders/${_currentUser!.uid}/schedule/med_times');
+    }
 
-    _originalName = widget.medicationData['name'] ?? 'N/A';
-    _nameController.text = _originalName;
+    _originalKey = widget.scheduleId;
+    _nameController.text = widget.medicationData['name'] ?? 'N/A';
     _dosageController.text = widget.medicationData['dosage'] ?? '';
     _frequency = widget.medicationData['frequency'] ?? 'Daily';
-    _times = (widget.medicationData['times'] as List<dynamic>? ?? [])
-        .map((timeStr) {
-      try {
-        final parts = (timeStr as String).split(':');
-        return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-      } catch (e) {
-        return TimeOfDay.now();
-      }
-    })
-        .toList();
+
+    // The device structure saves 'time' as a single string
+    String timeStr = widget.medicationData['time'] ?? "00:00";
+    try {
+      final parts = timeStr.split(':');
+      _times = [TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]))];
+    } catch (e) {
+      _times = [TimeOfDay.now()];
+    }
   }
 
   @override
@@ -131,63 +131,49 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     );
     if (picked != null && mounted) {
       setState(() {
-        _times.add(picked);
-        _times.sort((a, b) => (a.hour * 60 + a.minute).compareTo(b.hour * 60 + b.minute));
+        _times = [picked]; // Replace the time, as there is only one
       });
     }
   }
 
   void _removeTime(TimeOfDay time) {
-    setState(() {
-      _times.remove(time);
-    });
+    if (_times.length > 1) {
+      setState(() {
+        _times.remove(time);
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must have at least one time.')),
+      );
+    }
   }
 
+  // --- Update logic for RTDB ---
   Future<void> _updateMedication() async {
     if (!_formKey.currentState!.validate() || _times.isEmpty) {
-      if (_times.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please add at least one time.')),
-        );
-      }
       return;
     }
     setState(() { _isLoading = true; });
 
     try {
+      final newTimeStr = '${_times[0].hour.toString().padLeft(2, '0')}:${_times[0].minute.toString().padLeft(2, '0')}';
+      final newKey = "${_nameController.text}_${newTimeStr.replaceAll(":", "")}";
+
       final newMedData = {
         'name': _nameController.text,
         'dosage': _dosageController.text,
-        'times': _times.map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}').toList(),
-        'frequency': _frequency,
+        'time': newTimeStr,
+        'current_status': true, // Reset status
       };
 
-      final doc = await _scheduleDocRef.get();
-      if (!doc.exists) {
-        throw Exception("Schedule document not found.");
+      Map<String, dynamic> updates = {};
+
+      if (newKey != _originalKey) {
+        updates[_originalKey] = null; // This deletes the old key
       }
+      updates[newKey] = newMedData;
 
-      final allMeds = List<Map<String, dynamic>>.from(
-          (doc.data() as Map<String, dynamic>)['medications'] ?? []);
-
-      // Find the index of the pill we are editing
-      final int medIndex = allMeds.indexWhere((m) => m['name'] == _originalName);
-
-      if (medIndex == -1) {
-        throw Exception("Could not find the medication to update.");
-      }
-
-      // Replace the old pill data with the new pill data
-      allMeds[medIndex] = newMedData;
-
-      // Update the entire 'medications' array in Firestore
-      await _scheduleDocRef.update({'medications': allMeds});
-
-      // --- 2. ADD THIS BLOCK (FIRE AND FORGET) ---
-      ScheduleSyncService.triggerSync().catchError((e) {
-        print('RTDB background sync failed: $e');
-      });
-      // --- END OF ADDITION ---
+      await _medsRef.update(updates);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -208,29 +194,13 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     }
   }
 
-  // --- 4. NEW "Delete" LOGIC ---
+  // --- Delete logic for RTDB ---
   Future<void> _deleteMedication() async {
     setState(() { _isLoading = true; });
 
     try {
-      final doc = await _scheduleDocRef.get();
-      if (!doc.exists) {
-        throw Exception("Schedule document not found.");
-      }
-
-      final allMeds = List<Map<String, dynamic>>.from(
-          (doc.data() as Map<String, dynamic>)['medications'] ?? []);
-
-      allMeds.removeWhere((m) => m['name'] == _originalName);
-
-      // Update Firestore with the smaller list
-      await _scheduleDocRef.update({'medications': allMeds});
-
-      // --- 3. ADD THIS BLOCK (FIRE AND FORGET) ---
-      ScheduleSyncService.triggerSync().catchError((e) {
-        print('RTDB background sync failed: $e');
-      });
-      // --- END OF ADDITION ---
+      // To delete in RTDB, we set the value to null
+      await _medsRef.child(_originalKey).set(null);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -267,8 +237,8 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Delete', style: TextStyle(color: Colors.white)),
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
-                _deleteMedication(); // Call the delete function
+                Navigator.of(context).pop();
+                _deleteMedication();
               },
             ),
           ],
@@ -276,7 +246,6 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
       },
     );
   }
-  // -------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -308,8 +277,6 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
                 decoration: const InputDecoration(labelText: 'Dosage'),
               ),
               const SizedBox(height: 24),
-
-              // --- 5. ADDED FREQUENCY CHIPS ---
               const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -339,8 +306,6 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // --- Time(s) Input and Chips ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -360,10 +325,7 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
                   );
                 }).toList(),
               ),
-
               const SizedBox(height: 40),
-
-              // --- "Save Changes" Button ---
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _buildGradientButton(
@@ -372,11 +334,9 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
                 icon: Icons.save,
                 gradient: kPrimaryGradient,
               ),
-
               const SizedBox(height: 16),
-
               _buildGradientButton(
-                onPressed: _showDeleteConfirmation, // Shows confirmation
+                onPressed: _showDeleteConfirmation,
                 text: 'Delete Medication',
                 icon: Icons.delete_forever,
                 gradient: kRedGradient,

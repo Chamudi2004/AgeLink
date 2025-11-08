@@ -19,7 +19,6 @@ void main() {
   runApp(const FirebaseInitializer());
 }
 
-
 // 2. FIREBASE INITIALIZER - SAFE ENTRY POINT
 
 

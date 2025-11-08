@@ -1,12 +1,13 @@
 // lib/add_full_schedule_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'schedule_sync_service.dart'; // <-- 1. ADD THIS IMPORT
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
+// --- (Gradient constants are correct) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -41,13 +42,26 @@ class AddFullSchedulePage extends StatefulWidget {
 class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
   final _formKey = GlobalKey<FormState>();
   final _scheduleNameController = TextEditingController();
-
   final List<_MedicationEntry> _medicationEntries = [_MedicationEntry()];
-
   bool _isLoading = false;
 
-  final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
+
+  // --- 1. Point to the RTDB ---
+  late final DatabaseReference _remindersRef;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_currentUser != null) {
+      _remindersRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('reminders/${_currentUser!.uid}');
+    }
+  }
+  // --- END OF FIX ---
+
 
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
@@ -100,7 +114,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     );
   }
 
-
   void _addMedicationRow() {
     setState(() {
       _medicationEntries.add(_MedicationEntry());
@@ -134,33 +147,36 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     });
   }
 
+  // --- 2. Save logic is rewritten for RTDB ---
   Future<void> _saveSchedule() async {
     if (!_formKey.currentState!.validate()) return;
     if (_currentUser == null) return;
 
     setState(() { _isLoading = true; });
 
-    final schedulesCollection = FirebaseFirestore.instance
-        .collection('artifacts')
-        .doc(_appId)
-        .collection('users')
-        .doc(_currentUser!.uid)
-        .collection('medicationSchedules');
-
     try {
-      final List<Map<String, dynamic>> medicationsList = [];
+      // This is the new RTDB data structure
+      final Map<String, dynamic> rtdbScheduleObject = {};
+
       for (final entry in _medicationEntries) {
         if (entry.name.text.isNotEmpty && entry.times.isNotEmpty) {
-          medicationsList.add({
-            'name': entry.name.text,
-            'dosage': entry.dosage.text,
-            'times': entry.times.map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}').toList(),
-            'frequency': entry.frequency,
-          });
+
+          for (var time in entry.times) {
+            String timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+            // Create the key your device expects (e.g., "Insulin_1030")
+            String key = "${entry.name.text}_${timeStr.replaceAll(":", "")}";
+
+            rtdbScheduleObject[key] = {
+              'name': entry.name.text,
+              'dosage': entry.dosage.text,
+              'time': timeStr,
+              'current_status': true, // Add the default status
+            };
+          }
         }
       }
 
-      if (medicationsList.isEmpty) {
+      if (rtdbScheduleObject.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please add at least one valid medication.')),
         );
@@ -168,37 +184,11 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         return;
       }
 
-      WriteBatch batch = FirebaseFirestore.instance.batch();
+      // 1. Write to the 'med_times' path
+      await _remindersRef.child('schedule/med_times').set(rtdbScheduleObject);
 
-      QuerySnapshot oldSchedule = await schedulesCollection
-          .where('isActive', isEqualTo: true)
-          .limit(1)
-          .get();
-
-      if (oldSchedule.docs.isNotEmpty) {
-        batch.update(oldSchedule.docs.first.reference, {'isActive': false});
-      }
-
-      DocumentReference newScheduleRef = schedulesCollection.doc();
-      batch.set(newScheduleRef, {
-        'scheduleName': _scheduleNameController.text.isNotEmpty
-            ? _scheduleNameController.text
-            : 'My New Schedule',
-        'createdAt': FieldValue.serverTimestamp(),
-        'isActive': true,
-        'medications': medicationsList,
-      });
-
-      await batch.commit();
-
-      // --- 2. ADD THIS BLOCK (FIRE AND FORGET) ---
-      // This tells the "clerk" to sync to RTDB.
-      // We don't use 'await' so the user doesn't have to wait.
-      ScheduleSyncService.triggerSync().catchError((e) {
-        // Log an error if the background sync fails
-        print('RTDB background sync failed: $e');
-      });
-      // --- END OF ADDITION ---
+      // 2. Update the 'current_status'
+      await _remindersRef.child('schedule/current_status').set("IDLE"); // Set to idle
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -218,6 +208,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
       }
     }
   }
+  // --- END OF FIX ---
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +232,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- 1. Schedule Name ---
                     TextFormField(
                       controller: _scheduleNameController,
                       decoration: const InputDecoration(
@@ -260,8 +250,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const Divider(height: 20),
-
-                    // --- 2. List of Medication Forms ---
                     ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -271,8 +259,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       },
                     ),
                     const SizedBox(height: 16),
-
-                    // --- 3. "Add Another" Button ---
                     TextButton.icon(
                       onPressed: _addMedicationRow,
                       icon: const Icon(Icons.add_circle_outline),
@@ -282,8 +268,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 ),
               ),
             ),
-
-            // --- 4. "Save" Button ---
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: _isLoading
@@ -310,7 +294,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Name & Dosage ---
             Row(
               children: [
                 Expanded(
@@ -331,8 +314,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // --- 3. ADDED FREQUENCY CHIPS ---
             const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold)),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -346,7 +327,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       onSelected: (bool selected) {
                         if (selected) {
                           setState(() {
-                            // This updates the frequency for THIS specific entry
                             _medicationEntries[index].frequency = value;
                           });
                         }
@@ -363,8 +343,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // --- Times ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -384,7 +362,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 );
               }).toList(),
             ),
-
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
