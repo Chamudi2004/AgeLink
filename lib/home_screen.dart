@@ -1,7 +1,6 @@
 // lib/home_screen.dart
 
 import 'package:flutter/material.dart';
-// 1. REMOVED FIRESTORE
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -173,39 +172,40 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: _buildGradientButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PairDevicePage(),
-                  ),
-                );
-              },
-              text: 'Connect Device',
-              icon: Icons.device_hub,
-              gradient: kPrimaryGradient,
-            ),
-          ),
-
-          // --- 4. READ DEVICE STATUS FROM RTDB ---
+          // --- THIS IS FIX 2: We wrap both states in the StreamBuilder ---
           if (_currentUser != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              padding: const EdgeInsets.all(16.0),
               child: StreamBuilder(
                 stream: _remindersRef.onValue, // Listen to the parent 'reminders' node
                 builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                  // Case 1: Waiting for the first check
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: Text("Connecting to device..."));
+                    return const Center(child: CircularProgressIndicator());
                   }
+
+                  // Case 2: Error
                   if (snapshot.hasError) {
                     return const Center(child: Text("Error connecting to device."));
                   }
+
+                  // Case 3: No device found. Show the "Connect" button.
                   if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-                    return const Center(child: Text("Device not found."));
+                    return _buildGradientButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PairDevicePage(),
+                          ),
+                        );
+                      },
+                      text: 'Connect Device',
+                      icon: Icons.device_hub,
+                      gradient: kPrimaryGradient,
+                    );
                   }
+
 
                   // Safely cast the data
                   final dataMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
@@ -218,9 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   final deviceData = data['device'] as Map<dynamic, dynamic>? ?? {};
                   final scheduleData = data['schedule'] as Map<dynamic, dynamic>? ?? {};
 
-                  final bool isOnline = (scheduleData['current_status'] ?? 'OFFLINE') != 'OFFLINE';
-                  final num batteryNum = deviceData['volume'] ?? 0; // Use 'volume' as battery
-                  final int battery = (batteryNum * 100).toInt(); // Convert 0.1 to 10%
+                  final bool isOnline = deviceData['device_active'] ?? false;
 
                   return Container(
                     padding: const EdgeInsets.all(12),
@@ -247,24 +245,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            Text(
-                              '$battery%',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              battery > 75 ? Icons.battery_full :
-                              battery > 20 ? Icons.battery_std :
-                              Icons.battery_alert,
-                              color: battery > 20 ? Colors.green : Colors.red,
                             ),
                           ],
                         ),

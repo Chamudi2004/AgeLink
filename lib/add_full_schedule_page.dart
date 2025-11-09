@@ -170,7 +170,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               'name': entry.name.text,
               'dosage': entry.dosage.text,
               'time': timeStr,
-              'current_status': true, // Add the default status
             };
           }
         }
