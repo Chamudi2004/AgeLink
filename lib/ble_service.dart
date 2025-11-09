@@ -58,7 +58,7 @@ class BleService {
   }
 
   // 6. Send credentials
-  Future<void> sendWifiCredentials(String ssid, String password) async {
+  Future<void> sendWifiCredentials(String jsonData) async {
     if (_connectedDevice == null) {
       throw Exception("Device is not connected.");
     }
@@ -75,13 +75,12 @@ class BleService {
               (c) => c.uuid == WIFI_CHAR_UUID
       );
 
-      // This is the format guess, your friend must confirm this
-      String wifiData = "$ssid|$password";
-
-      print('Sending BLE data: $wifiData');
+      // We no longer format the data here.
+      // We just send the complete JSON string given to us by pair_device_page.dart
+      print('Sending BLE JSON data: $jsonData');
 
       // ignore: missing_permission
-      await wifiChar.write(utf8.encode(wifiData));
+      await wifiChar.write(utf8.encode(jsonData));
 
       await Future.delayed(const Duration(seconds: 1)); // Give device time
 

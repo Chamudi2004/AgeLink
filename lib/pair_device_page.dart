@@ -1,9 +1,12 @@
 // lib/pair_device_page.dart
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'ble_service.dart'; // <-- 1. Import the new service
+import 'package:firebase_auth/firebase_auth.dart';     // <-- ADD THIS
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PairDevicePage extends StatefulWidget {
   const PairDevicePage({super.key});
@@ -33,7 +36,13 @@ class _PairDevicePageState extends State<PairDevicePage> {
         _showBluetoothOffDialog();
       }
     });
-    _startScan();
+
+    // This delays _startScan() until AFTER the first frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _startScan();
+      }
+    });
   }
 
   @override
@@ -101,7 +110,7 @@ class _PairDevicePageState extends State<PairDevicePage> {
     try {
       await _bleService.connectToDevice(device);
       if (!mounted) return;
-      _showWifiDialog();
+      _showWifiDialog(device.remoteId.toString());
 
     } catch (e) {
       print('Connection Error: $e');
@@ -116,7 +125,7 @@ class _PairDevicePageState extends State<PairDevicePage> {
     }
   }
 
-  Future<void> _sendWifiCredentials() async {
+  Future<void> _sendWifiCredentials(String deviceId) async {
     if (_ssidController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all fields.')),
@@ -126,24 +135,54 @@ class _PairDevicePageState extends State<PairDevicePage> {
 
     setState(() { _isLoading = true; });
 
-    try {
-      await _bleService.sendWifiCredentials(
-          _ssidController.text,
-          _passwordController.text
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: You are not logged in.')),
       );
+      setState(() { _isLoading = false; });
+      return;
+    }
+
+    final String ssid = _ssidController.text;
+    final String pass = _passwordController.text;
+    final String userId = currentUser.uid;
+
+    const String fbHost = "agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app";
+    const String fbAuth = "iVNn4iHyjp2TizXHcx0QgrwGyEboJba8pxuDVLGm"; // <-- See security warning below
+
+    final Map<String, dynamic> provisioningData = {
+      "ssid": ssid,
+      "pass": pass,
+      "user_id": userId,
+      "fb_host": fbHost,
+      "fb_auth": fbAuth,
+    };
+
+    final String jsonString = jsonEncode(provisioningData);
+
+    try {
+      await _bleService.sendWifiCredentials(jsonString);
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .set({'pairedDeviceId': deviceId}, SetOptions(merge: true));
+
       await _bleService.disconnect();
 
       if (!mounted) return;
       Navigator.pop(context); // Close the WiFi dialog
       Navigator.pop(context); // Go back to the home screen
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Device provisioned successfully!')),
+        const SnackBar(content: Text('Device paired successfully!')),
       );
+
     } catch (e) {
-      print('Error sending credentials: $e');
+      print('Error sending credentials or saving to Firestore: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Could not send credentials.')),
+        const SnackBar(content: Text('Error: Could not complete pairing.')),
       );
     } finally {
       if(mounted) {
@@ -152,7 +191,7 @@ class _PairDevicePageState extends State<PairDevicePage> {
     }
   }
 
-  void _showWifiDialog() {
+  void _showWifiDialog(String deviceId) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -181,7 +220,7 @@ class _PairDevicePageState extends State<PairDevicePage> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: _sendWifiCredentials,
+            onPressed: () => _sendWifiCredentials(deviceId),
             child: const Text('Connect'),
           ),
         ],
