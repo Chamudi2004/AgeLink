@@ -35,10 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // --- 2. UPDATED RTDB REFERENCES ---
+  // --- RTDB REFERENCES ---
   late final DatabaseReference _remindersRef;
   late final DatabaseReference _medsRef;
-  // --- END OF FIX ---
+  late final DatabaseReference _historyRef; // <-- NEW: History reference
+  // --- END OF RTDB REFERENCES ---
 
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
@@ -46,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     IconData? icon,
     required Gradient gradient,
   }) {
+    // This function remains the same as before
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -87,18 +89,21 @@ class _HomeScreenState extends State<HomeScreen> {
     DateTime now = DateTime.now();
     _currentDate = _formatDate(now);
 
-    // --- 3. INITIALIZE RTDB PATHS ---
     if (_currentUser != null) {
       final db = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
       );
-      // This points to the parent folder for device status
-      _remindersRef = db.ref('reminders/${_currentUser!.uid}');
-      // This points to the medication list
-      _medsRef = db.ref('reminders/${_currentUser!.uid}/schedule/med_times');
+
+      final uid = _currentUser!.uid;
+      final todayDate = DateFormat('yyyy-MM-dd').format(now);
+
+      _remindersRef = db.ref('reminders/$uid');
+      _medsRef = db.ref('reminders/$uid/schedule/med_times');
+
+      // NEW: Reference to today's dose history
+      _historyRef = db.ref('reminders/$uid/history/$todayDate');
     }
-    // --- END OF FIX ---
   }
 
   String _formatDate(DateTime date) {
@@ -117,7 +122,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildMedicationItem(_TodayDose dose) {
+  // --- MODIFIED TO ACCEPT STATUS ---
+  Widget _buildMedicationItem(_TodayDose dose, String status) {
+
+    IconData icon;
+    Color iconColor;
+
+    if (status == 'taken') {
+      icon = Icons.check_circle;
+      iconColor = Constants.greenColor;
+    } else if (status == 'missed') {
+      icon = Icons.cancel;
+      iconColor = Colors.red;
+    } else { // pending or not found
+      icon = Icons.radio_button_unchecked;
+      iconColor = Constants.mediumGrey;
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -156,105 +177,96 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          // --- Display the status icon ---
           Icon(
-            Icons.radio_button_unchecked,
-            color: Constants.mediumGrey,
+            icon,
+            color: iconColor,
             size: 20,
           ),
         ],
       ),
     );
   }
+  // --- END MODIFIED _buildMedicationItem ---
 
   @override
   Widget build(BuildContext context) {
+    if (_currentUser == null) {
+      return const Center(child: Text('Please log in.'));
+    }
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- THIS IS FIX 2: We wrap both states in the StreamBuilder ---
-          if (_currentUser != null)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: StreamBuilder(
-                stream: _remindersRef.onValue, // Listen to the parent 'reminders' node
-                builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                  // Case 1: Waiting for the first check
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  // Case 2: Error
-                  if (snapshot.hasError) {
-                    return const Center(child: Text("Error connecting to device."));
-                  }
-
-                  // Case 3: No device found. Show the "Connect" button.
-                  if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-                    return _buildGradientButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const PairDevicePage(),
-                          ),
-                        );
-                      },
-                      text: 'Connect Device',
-                      icon: Icons.device_hub,
-                      gradient: kPrimaryGradient,
-                    );
-                  }
-
-
-                  // Safely cast the data
-                  final dataMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-                  final data = <String, dynamic>{};
-                  dataMap.forEach((key, value) {
-                    data[key.toString()] = value;
-                  });
-
-                  // Get data from the 'device' and 'schedule' sub-nodes
-                  final deviceData = data['device'] as Map<dynamic, dynamic>? ?? {};
-                  final scheduleData = data['schedule'] as Map<dynamic, dynamic>? ?? {};
-
-                  final bool isOnline = deviceData['device_active'] ?? false;
-
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isOnline ? Colors.green.shade50 : Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isOnline ? Colors.green.shade300 : Colors.red.shade300,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              isOnline ? Icons.wifi : Icons.wifi_off,
-                              color: isOnline ? Colors.green : Colors.red,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              isOnline ? 'Device Connected' : 'Device Offline',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+          // Device Status StreamBuilder (Unchanged)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: StreamBuilder<DatabaseEvent>(
+              stream: _remindersRef.onValue,
+              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError || !snapshot.hasData || snapshot.data!.snapshot.value == null) {
+                  return _buildGradientButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PairDevicePage(),
                         ),
-                      ],
-                    ),
+                      );
+                    },
+                    text: 'Connect Device',
+                    icon: Icons.device_hub,
+                    gradient: kPrimaryGradient,
                   );
-                },
-              ),
+                }
+
+                final dataMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                final data = <String, dynamic>{};
+                dataMap.forEach((key, value) {
+                  data[key.toString()] = value;
+                });
+
+                final deviceData = data['device'] as Map<dynamic, dynamic>? ?? {};
+                final bool isOnline = deviceData['device_active'] ?? false;
+
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isOnline ? Colors.green.shade50 : Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isOnline ? Colors.green.shade300 : Colors.red.shade300,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isOnline ? Icons.wifi : Icons.wifi_off,
+                            color: isOnline ? Colors.green : Colors.red,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            isOnline ? 'Device Connected' : 'Device Offline',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-          // --- END OF FIX ---
+          ),
 
           const SizedBox(height: 16),
 
@@ -282,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // --- 5. READ SCHEDULE FROM RTDB ---
+          // --- MODIFIED SCHEDULE STREAM BUILDER WITH HISTORY ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
@@ -300,16 +312,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               child: StreamBuilder<DatabaseEvent>(
-                stream: _medsRef.onValue, // Listen to the med_times path
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                stream: _medsRef.onValue, // Listen to the active schedule
+                builder: (context, scheduleSnapshot) {
+                  if (scheduleSnapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  if (snapshot.hasError) {
+                  if (scheduleSnapshot.hasError) {
                     return const Center(
                         child: Text('Error loading schedule.'));
                   }
-                  if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+                  if (!scheduleSnapshot.hasData || scheduleSnapshot.data!.snapshot.value == null) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16.0),
                       child: Center(
@@ -317,8 +329,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // Parse the Map of medications
-                  final medTimesMap = snapshot.data!.snapshot.value as Map;
+                  // 1. Parse the Map of medications from the schedule
+                  final medTimesMap = scheduleSnapshot.data!.snapshot.value as Map;
                   final todayDoses = medTimesMap.entries.map((entry) {
                     final med = Map<String, dynamic>.from(entry.value as Map);
                     return _TodayDose(
@@ -339,23 +351,46 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  return Column(
-                    children: [
-                      for (int i = 0; i < todayDoses.length; i++)
-                        Column(
+                  // 2. Use a FutureBuilder to fetch today's history once (using .once() for efficiency)
+                  return FutureBuilder<DatabaseEvent>(
+                      future: _historyRef.once(), // Get history for today
+                      builder: (context, historySnapshot) {
+                        // We still show the doses even if history is loading or has an error
+                        // They will just default to 'pending'.
+
+                        final historyMap = historySnapshot.data?.snapshot.value as Map<dynamic, dynamic>? ?? {};
+
+                        return Column(
                           children: [
-                            _buildMedicationItem(todayDoses[i]),
-                            if (i < todayDoses.length - 1)
-                              const Divider(height: 16, thickness: 0.5, color: Colors.grey),
+                            for (int i = 0; i < todayDoses.length; i++)
+                              Builder(
+                                  builder: (context) {
+                                    final dose = todayDoses[i];
+
+                                    // Create the unique key: "{Name}_{TimeNoColons}"
+                                    final String doseKey = "${dose.name.replaceAll(' ', '_')}_${dose.time.replaceAll(":", "")}";
+
+                                    // Get the status from the history map, default to 'pending'
+                                    final String status = historyMap[doseKey]?['status']?.toString() ?? 'pending';
+
+                                    return Column(
+                                      children: [
+                                        _buildMedicationItem(dose, status), // Pass the status
+                                        if (i < todayDoses.length - 1)
+                                          const Divider(height: 16, thickness: 0.5, color: Colors.grey),
+                                      ],
+                                    );
+                                  }
+                              ),
                           ],
-                        ),
-                    ],
+                        );
+                      }
                   );
                 },
               ),
             ),
           ),
-          // --- END OF FIX ---
+          // --- END OF MODIFIED SCHEDULE STREAM BUILDER ---
           const SizedBox(height: 24),
         ],
       ),

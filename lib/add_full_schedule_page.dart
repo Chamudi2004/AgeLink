@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
@@ -155,23 +156,39 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     setState(() { _isLoading = true; });
 
     try {
-      // This is the new RTDB data structure
+      // Data structure for the Realtime Database (RTDB) (current active schedule)
       final Map<String, dynamic> rtdbScheduleObject = {};
+
+      // Data structure for the Firestore History (full schedule record)
+      final List<Map<String, dynamic>> firestoreMedicationsList = [];
 
       for (final entry in _medicationEntries) {
         if (entry.name.text.isNotEmpty && entry.times.isNotEmpty) {
 
+          // Prepare the list of times for the Firestore entry
+          final List<String> timesList = [];
+
           for (var time in entry.times) {
             String timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-            // Create the key your device expects (e.g., "Insulin_1030")
-            String key = "${entry.name.text}_${timeStr.replaceAll(":", "")}";
 
+            // 1. Prepare data for RTDB (key/value pair structure for device consumption)
+            String key = "${entry.name.text}_${timeStr.replaceAll(":", "")}";
             rtdbScheduleObject[key] = {
               'name': entry.name.text,
               'dosage': entry.dosage.text,
               'time': timeStr,
             };
+
+            timesList.add(timeStr);
           }
+
+          // 2. Prepare data for Firestore (list structure for history display)
+          firestoreMedicationsList.add({
+            'name': entry.name.text,
+            'dosage': entry.dosage.text,
+            'frequency': entry.frequency,
+            'times': timesList,
+          });
         }
       }
 
@@ -183,16 +200,40 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         return;
       }
 
-      // 1. Write to the 'med_times' path
+      // --- CRITICAL FIRESTORE UPDATE: 1. Set all old schedules to inactive ---
+      final firestoreRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .collection('medicationSchedules');
+
+      // We need to fetch all existing documents and set their 'isActive' flag to false.
+      final existingSchedules = await firestoreRef.where('isActive', isEqualTo: true).get();
+      for (final doc in existingSchedules.docs) {
+        await doc.reference.update({'isActive': false});
+      }
+
+      // --- CRITICAL FIRESTORE UPDATE: 2. Add the new schedule as the active one ---
+      final firestoreScheduleData = {
+        'scheduleName': _scheduleNameController.text,
+        'isActive': true, // Mark this new schedule as active
+        'createdAt': Timestamp.now(),
+        'medications': firestoreMedicationsList,
+        // You might add an ID to link to RTDB if needed, but not necessary for history
+      };
+
+      await firestoreRef.add(firestoreScheduleData);
+
+      // --- RTDB UPDATE: 3. Overwrite the current active schedule in RTDB ---
       await _remindersRef.child('schedule/med_times').set(rtdbScheduleObject);
 
-      // 2. Update the 'current_status'
-      await _remindersRef.child('schedule/current_status').set("IDLE"); // Set to idle
+      // --- RTDB UPDATE: 4. Update the device status ---
+      await _remindersRef.child('schedule/current_status').set("IDLE");
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('New schedule saved!')),
+          const SnackBar(content: Text('New schedule saved and activated!')),
         );
+        // Navigate back after successful save
         Navigator.pop(context);
       }
     } catch (e) {
@@ -201,13 +242,13 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
           SnackBar(content: Text('Failed to save schedule: $e')),
         );
       }
+      print("Schedule Save Error: $e"); // Log error for debugging
     } finally {
       if (mounted) {
         setState(() { _isLoading = false; });
       }
     }
   }
-  // --- END OF FIX ---
 
   @override
   Widget build(BuildContext context) {

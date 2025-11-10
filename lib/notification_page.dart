@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart'; // <-- ADDED for better date formatting
 
 class DoseNotification {
   final String docId;
@@ -22,8 +23,6 @@ class DoseNotification {
     required this.reminderState,
   });
 
-  // --- THIS IS THE FIX ---
-  // The factory is updated to be type-safe
   factory DoseNotification.fromRTDB(DataSnapshot snapshot) {
     final data = Map<String, dynamic>.from(snapshot.value as Map);
 
@@ -34,7 +33,6 @@ class DoseNotification {
       doseDate = DateTime.fromMillisecondsSinceEpoch(data['confirmed_at_timestamp']);
     }
 
-    // By calling .toString(), we safely handle both int and String types
     String state = (data['reminder_state'] ?? 'Missed').toString();
     String medName = (data['medicine_name'] ?? 'Unknown Medication').toString();
     String confirmedAt = (data['confirmed_at'] ?? 'N/A').toString();
@@ -44,13 +42,12 @@ class DoseNotification {
     return DoseNotification(
       docId: snapshot.key ?? '',
       medicationName: medName,
-      time: confirmedAt, // Now it's guaranteed to be a String
+      time: confirmedAt,
       date: doseDate,
       isTaken: taken,
       reminderState: state,
     );
   }
-// --- END OF FIX ---
 }
 
 // Notification Page Widget
@@ -71,7 +68,6 @@ class _NotificationPageState extends State<NotificationPage> {
     super.initState();
 
     if (userId != null) {
-      // Point to the RTDB path and include the URL
       _alertsRef = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -79,8 +75,47 @@ class _NotificationPageState extends State<NotificationPage> {
     }
   }
 
+  // Improved date formatting helper
   String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final doseDay = DateTime(date.year, date.month, date.day);
+
+    if (doseDay == today) {
+      return 'Today';
+    } else if (doseDay == yesterday) {
+      return 'Yesterday';
+    } else {
+      return DateFormat('EEEE, MMMM d, yyyy').format(date);
+    }
+  }
+
+  Widget _buildDateHeader(DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16.0, bottom: 8.0, left: 8.0, right: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Divider(color: Colors.grey.shade400, height: 1.0),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Text(
+              _formatDate(date),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Divider(color: Colors.grey.shade400, height: 1.0),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -105,7 +140,6 @@ class _NotificationPageState extends State<NotificationPage> {
 
         final List<DoseNotification> alerts = [];
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          // This logic is now safe and correct
           for (final child in snapshot.data!.snapshot.children) {
             try {
               alerts.add(DoseNotification.fromRTDB(child));
@@ -113,6 +147,7 @@ class _NotificationPageState extends State<NotificationPage> {
               print('Error parsing notification: $e');
             }
           }
+          // IMPORTANT: Sorting by date is CRUCIAL for grouping logic
           alerts.sort((a, b) => b.date.compareTo(a.date));
         }
 
@@ -134,37 +169,59 @@ class _NotificationPageState extends State<NotificationPage> {
           itemCount: alerts.length,
           itemBuilder: (context, index) {
             final notification = alerts[index];
+            final DateTime currentDoseDate = DateTime(notification.date.year, notification.date.month, notification.date.day);
+
+            // Check if this item should display a date header
+            bool showDateHeader = true;
+            if (index > 0) {
+              final previousNotification = alerts[index - 1];
+              final DateTime previousDoseDate = DateTime(previousNotification.date.year, previousNotification.date.month, previousNotification.date.day);
+
+              // Only show the header if the current date is different from the previous date
+              if (currentDoseDate.isAtSameMomentAs(previousDoseDate)) {
+                showDateHeader = false;
+              }
+            }
 
             final statusColor = notification.isTaken ? Colors.green.shade600 : Colors.red.shade600;
             final statusIcon = notification.isTaken ? Icons.check_circle_outline : Icons.cancel_outlined;
             final statusText = notification.isTaken ? 'Taken (${notification.reminderState})' : 'Missed';
 
-            return Card(
-              elevation: 2,
-              margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: ListTile(
-                leading: Icon(
-                  statusIcon,
-                  color: statusColor,
-                  size: 32,
-                ),
-                title: Text(
-                  notification.medicationName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                subtitle: Text(
-                  '$statusText at ${notification.time} on ${_formatDate(notification.date)}',
-                  style: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
-                ),
-                trailing: Chip(
-                  label: Text(
-                    notification.time,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Insert the Date Header if needed
+                if (showDateHeader) _buildDateHeader(notification.date),
+
+                // 2. The Notification ListTile
+                Card(
+                  elevation: 2,
+                  margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    leading: Icon(
+                      statusIcon,
+                      color: statusColor,
+                      size: 32,
+                    ),
+                    title: Text(
+                      notification.medicationName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    subtitle: Text(
+                      '$statusText at ${notification.time}', // Removed date from subtitle
+                      style: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
+                    ),
+                    trailing: Chip(
+                      label: Text(
+                        notification.time,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: statusColor.withOpacity(0.8),
+                    ),
                   ),
-                  backgroundColor: statusColor.withOpacity(0.8),
                 ),
-              ),
+              ],
             );
           },
         );
