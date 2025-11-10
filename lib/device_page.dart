@@ -5,8 +5,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'pair_device_page.dart';
-import 'package:flutter/services.dart'; // Import for status bar control
-import 'package:intl/intl.dart'; // IMPORT for date formatting
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 class DevicePage extends StatefulWidget {
   const DevicePage({super.key});
@@ -20,6 +20,7 @@ class _DevicePageState extends State<DevicePage> {
   DatabaseReference? _userRemindersRef;
 
   // Local state for the slider
+  // We keep this to ensure the slider updates smoothly while dragging
   double? _localVolume;
 
   @override
@@ -30,9 +31,11 @@ class _DevicePageState extends State<DevicePage> {
 
   void _setupDeviceReference() {
     if (_currentUser == null) {
-      print("User not logged in, can't fetch device data.");
+      print("DevicePage: User not logged in, can't fetch device data.");
       return;
     }
+
+    print("DevicePage: Initializing DB reference for UID: ${_currentUser!.uid}");
 
     try {
       final db = FirebaseDatabase.instanceFor(
@@ -40,9 +43,7 @@ class _DevicePageState extends State<DevicePage> {
           databaseURL:
           "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app");
 
-      // --- THIS IS THE CORRECT PATH ---
       _userRemindersRef = db.ref('reminders/${_currentUser!.uid}');
-      // --- END OF FIX ---
 
       print("DevicePage: Listening for data at ${_userRemindersRef!.path}");
     } catch (e) {
@@ -50,20 +51,29 @@ class _DevicePageState extends State<DevicePage> {
     }
   }
 
+  // NOTE: This function is now called continuously from onChanged.
   void _updateVolume(double sliderValue) {
-    if (_userRemindersRef == null) return;
+    if (_userRemindersRef == null) {
+      print("DevicePage: ERROR - Database reference is null. Cannot update volume.");
+      return;
+    }
 
     double firebaseValue = sliderValue / 100.0;
-    print("DevicePage: Updating volume to $firebaseValue");
-    // This will now write to the correct path
+
+    // print("DevicePage: Attempting to write volume: $firebaseValue"); // Suppress continuous logging
+
     _userRemindersRef!
         .child('device')
         .child('volume')
         .set(firebaseValue)
+        .then((_) {
+      // print("DevicePage: Volume update successful."); // Suppress continuous logging
+    })
         .catchError((e) {
+      print("DevicePage: ERROR updating volume: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating volume: $e')),
+          SnackBar(content: Text('Error updating volume. Error: $e')),
         );
       }
     });
@@ -71,10 +81,9 @@ class _DevicePageState extends State<DevicePage> {
 
   void _disconnectDevice() async {
     if (_currentUser == null) return;
-    if (_userRemindersRef == null) return; // Added safety check
+    if (_userRemindersRef == null) return;
 
     try {
-      // 1. Try to remove the pairing from Firestore
       try {
         await FirebaseFirestore.instance
             .collection('users')
@@ -89,14 +98,13 @@ class _DevicePageState extends State<DevicePage> {
         }
       }
 
-      // 2. Remove the device's data from Realtime Database
       await _userRemindersRef!.remove();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Device unpaired.')),
         );
-        Navigator.pop(context); // Go back
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -107,32 +115,17 @@ class _DevicePageState extends State<DevicePage> {
     }
   }
 
-  // Helper function to format the timestamp
-  String _formatLastSynced(num timestamp) {
-    if (timestamp == 0) {
-      return "N/A";
+  num _parseNum(dynamic value, [num defaultValue = 0]) {
+    if (value == null) {
+      return defaultValue;
     }
-    final int milliseconds = timestamp.toInt();
-    final DateTime lastSyncTime =
-    DateTime.fromMillisecondsSinceEpoch(milliseconds);
-    final DateTime now = DateTime.now();
-    final DateFormat timeFormat = DateFormat('h:mm a'); // e.g., 10:30 AM
-
-    if (now.day == lastSyncTime.day &&
-        now.month == lastSyncTime.month &&
-        now.year == lastSyncTime.year) {
-      return "Today at ${timeFormat.format(lastSyncTime)}";
+    if (value is num) {
+      return value;
     }
-
-    final DateTime yesterday = now.subtract(const Duration(days: 1));
-    if (yesterday.day == lastSyncTime.day &&
-        yesterday.month == lastSyncTime.month &&
-        yesterday.year == lastSyncTime.year) {
-      return "Yesterday at ${timeFormat.format(lastSyncTime)}";
+    if (value is String) {
+      return num.tryParse(value) ?? defaultValue;
     }
-
-    // e.g., Nov 5 at 10:30 AM
-    return DateFormat('MMM d \'at\' h:mm a').format(lastSyncTime);
+    return defaultValue;
   }
 
   Widget _buildPairDeviceButton() {
@@ -194,35 +187,28 @@ class _DevicePageState extends State<DevicePage> {
     if (_userRemindersRef == null) {
       bodyContent = _buildPairDeviceButton();
     } else {
-      // Use StreamBuilder for live updates
       bodyContent = StreamBuilder<DatabaseEvent>(
-        stream: _userRemindersRef!.onValue, // Listens for live changes
+        stream: _userRemindersRef!.onValue,
         builder: (context, AsyncSnapshot<DatabaseEvent> eventSnapshot) {
-          // Case 1: Still loading
           if (eventSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Case 2: An error happened
           if (eventSnapshot.hasError) {
             return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Text(
-                      "Error loading data. Please check your connection and Firebase Rules.\n\nError: ${eventSnapshot.error.toString()}",
+                      "Error loading data: ${eventSnapshot.error.toString()}",
                       textAlign: TextAlign.center),
                 ));
           }
 
-          // Case 3: No data found at that path
           if (!eventSnapshot.hasData ||
               eventSnapshot.data!.snapshot.value == null) {
-            print("DevicePage: No data found at path.");
             return _buildPairDeviceButton();
           }
 
-          // Case 4: Success! We got the data.
-          print("DevicePage: Data loaded successfully.");
           final dataMap =
           eventSnapshot.data!.snapshot.value as Map<dynamic, dynamic>;
           final data = <String, dynamic>{};
@@ -233,32 +219,43 @@ class _DevicePageState extends State<DevicePage> {
           final deviceData = data['device'] as Map<dynamic, dynamic>? ?? {};
 
           String deviceName = deviceData['device_id']?.toString() ?? 'N/A';
-
-          // This is your correct logic
           final bool isActive = deviceData['device_active'] ?? false;
           String status = isActive ? 'Device Active' : 'Device Inactive';
 
-          // This is the logic for Last Synced
-          final num lastSyncTimestamp = deviceData['last_synced'] ?? 0;
-          String lastSync = _formatLastSynced(lastSyncTimestamp);
+          final String lastSyncString = deviceData['last_sync']?.toString() ?? "N/A";
+          String lastSync;
 
-          final num volumeNum = deviceData['volume'] ?? 0.0;
+          if (lastSyncString == "N/A") {
+            lastSync = "N/A";
+          } else {
+            try {
+              final parts = lastSyncString.split(':');
+              final hour = int.parse(parts[0]);
+              final minute = int.parse(parts[1]);
+              final dt = DateTime(2025, 1, 1, hour, minute);
+              lastSync = "Today at ${TimeOfDay.fromDateTime(dt).format(context)}";
+            } catch (e) {
+              lastSync = lastSyncString;
+            }
+          }
+
+          final num volumeNum = _parseNum(deviceData['volume'], 0.0);
           final double currentVolume = (volumeNum.toDouble() * 100.0);
 
+          // Priority: 1. Local drag value, 2. Live Firebase value
           double sliderValue = _localVolume ?? currentVolume;
 
           return Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(
               children: [
-                // This Column contains the device info (no white box)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Device Name',
                       style: TextStyle(
-                          color: Color(0xFF0D47A1), // Dark text for label
+                          color: Color(0xFF0D47A1),
                           fontSize: 16,
                           fontWeight: FontWeight.bold),
                     ),
@@ -267,44 +264,44 @@ class _DevicePageState extends State<DevicePage> {
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87, // Dark text for value
+                        color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 24), // Increased spacing
+                    const SizedBox(height: 24),
                     Text(
                       'Status',
                       style: TextStyle(
-                          color: Color(0xFF0D47A1), // Dark text for label
+                          color: Color(0xFF0D47A1),
                           fontSize: 16,
                           fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      status, // This will now update live
+                      status,
                       style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
-                          color: Colors.black87), // Dark text for value
+                          color: Colors.black87),
                     ),
-                    const SizedBox(height: 24), // Increased spacing
+                    const SizedBox(height: 24),
                     Text(
-                      'Last Synced',
+                      'Last Sync',
                       style: TextStyle(
-                          color: Color(0xFF0D47A1), // Dark text for label
+                          color: Color(0xFF0D47A1),
                           fontSize: 16,
                           fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      lastSync, // This will now update live
+                      lastSync,
                       style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: Colors.black87), // Dark text for value
+                          color: Colors.black87),
                     ),
-                    const SizedBox(height: 24), // Increased spacing
+                    const SizedBox(height: 24),
                     Text(
                       'Volume',
                       style: TextStyle(
-                          color: Color(0xFF0D47A1), // Dark text for label
+                          color: Color(0xFF0D47A1),
                           fontSize: 16,
                           fontWeight: FontWeight.bold),
                     ),
@@ -314,24 +311,32 @@ class _DevicePageState extends State<DevicePage> {
                       max: 100,
                       divisions: 10,
                       label: sliderValue.round().toString(),
-                      activeColor:
-                      Theme.of(context).primaryColor, // Kept this color
+                      activeColor: Theme.of(context).primaryColor,
+
+                      // *** FIX: Update local state AND write to Firebase continuously ***
                       onChanged: (value) {
+                        // 1. Update the local UI state for smooth dragging
                         setState(() {
-                          // Update the slider's UI locally
-                          sliderValue = value;
                           _localVolume = value;
                         });
-                      },
-                      onChangeEnd: (value) {
-                        // Send the final value to Firebase
+
+                        // 2. Immediately write the value to the database on every change
+                        // This ensures the database reflects the position without lifting the finger.
                         _updateVolume(value);
+                      },
+
+                      // Optional: Clear local state on drag end to rely fully on stream
+                      onChangeEnd: (value) {
+                        setState(() {
+                          _localVolume = null;
+                        });
+                        // NOTE: _updateVolume is already called by onChanged, so we don't need it here.
                       },
                     ),
                   ],
                 ),
                 const Spacer(),
-                // This is the corrected Disconnect button
+                // Disconnect button
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12.0),
                   child: ElevatedButton(
@@ -378,16 +383,16 @@ class _DevicePageState extends State<DevicePage> {
       );
     }
 
-    // This is the main page structure
+    // Main page structure
     return Scaffold(
       backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true, // Make body draw behind app bar
+      extendBodyBehindAppBar: true,
       appBar: _buildAppBar(),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              const Color(0xFFE3F2FD), // Opaque color
+              const Color(0xFFE3F2FD),
               const Color(0xFFBBDEFB)
             ],
             begin: Alignment.topCenter,
@@ -396,7 +401,7 @@ class _DevicePageState extends State<DevicePage> {
         ),
         width: double.infinity,
         height: double.infinity,
-        child: SafeArea( // Adds padding to avoid status bar
+        child: SafeArea(
           child: bodyContent,
         ),
       ),
@@ -405,15 +410,15 @@ class _DevicePageState extends State<DevicePage> {
 
   AppBar _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent, // Transparent background
-      elevation: 0, // No shadow
-      leading: const BackButton(color: Colors.black87), // Black back button
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      leading: const BackButton(color: Colors.black87),
       title: const Text(
         'Device',
         style:
-        TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold), // Dark title
+        TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
       ),
-      systemOverlayStyle: SystemUiOverlayStyle.dark, // Dark status bar icons
+      systemOverlayStyle: SystemUiOverlayStyle.dark,
     );
   }
 }

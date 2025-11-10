@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // <-- 1. ADD THIS IMPORT
-import 'package:firebase_database/firebase_database.dart'; // <-- 2. ADD THIS IMPORT
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
@@ -40,15 +40,13 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
 
-    // --- 3. THIS IS THE FIX ---
-    // You must specify the databaseURL to connect to the correct region
+    // This path is correct according to your logs
     if (currentUser != null) {
       _contactsRef = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
       ).ref('appData/${currentUser!.uid}/emergencyContacts');
     }
-    // --- END OF FIX ---
   }
 
   @override
@@ -178,6 +176,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (name.isEmpty || phone.isEmpty) return;
     if (currentUser == null) return; // Safety check
 
+    // Save the phone number as a String, not a Number
     final newContact = {'name': name, 'phone': phone};
     _contactsRef.push().set(newContact);
   }
@@ -243,11 +242,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 // Convert the Map to a List for the ListView
                 final contactsList = contactsMap.entries.map((entry) {
+                  // --- THIS IS THE FIX ---
+                  // We'll convert the data to Strings right here to be safe
+                  final data = Map<String, dynamic>.from(entry.value as Map);
                   return {
-                    'key': entry.key, // This is the unique ID (e.g., -Nq..._jA)
-                    'name': entry.value['name'] ?? 'No Name',
-                    'phone': entry.value['phone'] ?? 'No Phone'
+                    'key': entry.key,
+                    'name': (data['name'] ?? 'No Name').toString(),
+                    'phone': (data['phone'] ?? 'No Phone').toString(),
                   };
+                  // --- END OF FIX ---
                 }).toList();
 
                 return ListView.builder(
@@ -261,7 +264,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       margin: const EdgeInsets.only(bottom: 8.0),
                       child: ListTile(
                         title: Text(contact['name']!),
-                        subtitle: Text(contact['phone']!),
+                        subtitle: Text(contact['phone']!), // This is now safe
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline, color: Colors.red),
                           onPressed: () => _deleteContact(contact['key']!),
