@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Make sure you have these files and the imports are correct
 import 'family_permissions_page.dart';
-import 'pair_device_page.dart';
+import 'device_page.dart';
 import 'settings_page.dart';
 import 'help_page.dart';
 import 'edit_profile_page.dart';
@@ -203,7 +203,7 @@ class AppMenuDrawer extends StatelessWidget {
                 icon: Icons.devices_other_outlined,
                 title: 'Device',
                 onTap: () {
-                  _navigateTo(context, const PairDevicePage());
+                  _navigateTo(context, const DevicePage());
                 },
               ),
               _buildMenuItem(
