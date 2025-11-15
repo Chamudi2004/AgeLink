@@ -34,12 +34,20 @@ dependencies:
   firebase_auth: ^6.1.1 # For Authentication
   cloud_firestore: ^6.0.3 # For saving user details (like name) after sign-up
   google_sign_in: ^6.3.0
-
-
+  flutter_blue_plus: ^1.35.4
+  permission_handler: ^11.0.0
+  pubspec_parse: ^1.5.0
+  firebase_messaging: ^16.0.4
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   device_preview: ^1.3.1
+  flutter_secure_storage: ^9.2.4
+  firebase_database: ^12.0.4
+  firebase_storage: ^13.0.3
+  image_picker: ^1.1.2
+  intl: ^0.20.2
+  flutter_native_splash: ^2.4.7
 
 dev_dependencies:
   flutter_test:
@@ -56,15 +64,27 @@ dev_dependencies:
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
+  flutter_launcher_icons: ^0.13.1
+
 flutter:
 
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
 
   assets:
     - assets/
+
+flutter_native_splash:
+  # The light blue gradient from your app
+  color: "#F0F4FF"
+  color_dark: "#F0F4FF"
+
+  # Your logo
+  image: assets/logo.png
+  image_dark: assets/logo.png
+
+  android_12:
+    color: "#F0F4FF"
+    image: assets/logo.png
 
 
   # To add assets to your application, add an assets section, like this:
@@ -97,3 +117,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/l_logo.png" # <-- Make sure this path is correct
+  min_sdk_android: 21

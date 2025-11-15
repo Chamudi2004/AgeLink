@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'main.dart'; // To access AuthView
+import 'main.dart';
 
-// --- SIGN UP SCREEN ---
+
 class SignUpScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onSignUp;
   final Function(AuthView) onNavigate;
@@ -19,6 +19,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   void _submit() {
     if (_formKey.currentState!.validate()) {
       if (_passwordController.text != _confirmPasswordController.text) {
@@ -34,6 +46,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'password': _passwordController.text,
       });
     }
+  }
+
+  Widget _buildVisibilityToggle({
+    required bool isVisible,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      icon: Icon(
+        isVisible ? Icons.visibility_off : Icons.visibility,
+        color: Colors.grey,
+      ),
+      onPressed: onPressed,
+    );
   }
 
   @override
@@ -74,10 +99,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
           TextFormField(
             controller: _passwordController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_isPasswordVisible,
+            decoration: InputDecoration(
               hintText: 'Password (min 6 characters)',
               prefixIcon: Icon(Icons.lock_outline, color: Colors.grey),
+              suffixIcon: _buildVisibilityToggle(
+                isVisible: _isPasswordVisible,
+                onPressed: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible;
+                  });
+                },
+              ),
             ),
             validator: (value) => value!.length < 6 ? 'Password is too short' : null,
           ),
@@ -85,47 +118,54 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
           TextFormField(
             controller: _confirmPasswordController,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_isConfirmPasswordVisible,
+            decoration: InputDecoration(
               hintText: 'Confirm Password',
               prefixIcon: Icon(Icons.lock_reset_outlined, color: Colors.grey),
+              suffixIcon: _buildVisibilityToggle(
+                isVisible: _isConfirmPasswordVisible,
+                onPressed: () {
+                  setState(() {
+                    _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                  });
+                },
+              ),
             ),
             validator: (value) => value != _passwordController.text ? 'Passwords must match' : null,
           ),
           const SizedBox(height: 32),
 
-// --- UPDATED Sign Up Button ---
-          ClipRRect( // Wrap with ClipRRect for rounded corners
+
+          ClipRRect(
             borderRadius: BorderRadius.circular(12.0),
             child: ElevatedButton(
-              onPressed: _submit, // This is your submit function
+              onPressed: _submit,
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero, // Remove default padding
+                padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
                 ),
-                backgroundColor: Colors.transparent, // Make button transparent
-                shadowColor: Colors.transparent, // Hide default shadow
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
                 elevation: 2,
               ),
-              child: Ink( // Use Ink for the gradient and splash effect
+              child: Ink(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12.0),
-                  gradient: const LinearGradient( // Your gradient
+                  gradient: const LinearGradient(
                     colors: [
-                      Color(0xFF1E88E5), // Blue
-                      Color(0xFF0D47A1), // Darker Blue
+                      Color(0xFF1E88E5),
+                      Color(0xFF0D47A1),
                     ],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   ),
                 ),
                 child: Container(
-                  // This container holds the text and re-applies the padding
                   padding: const EdgeInsets.symmetric(vertical: 16.0),
                   alignment: Alignment.center,
                   child: const Text(
-                    'Sign Up', // <-- Updated text
+                    'Sign Up',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -136,24 +176,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 35),
 
           // Log In Navigation
-          TextButton(
-            onPressed: () => widget.onNavigate(AuthView.login),
-            child: const Text.rich(
-              TextSpan(
-                text: "Already have an account? ",
-                style: TextStyle(color: Colors.black54),
-                children: [
-                  TextSpan(
-                    text: 'Login here',
-                    style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
-                  ),
-                ],
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text(
+            'Already have an account? ',
+            style: TextStyle(color: Colors.black54, fontSize: 14),
+          ),
+          InkWell(
+            onTap: () {
+              widget.onNavigate(AuthView.login);
+            },
+            borderRadius: BorderRadius.circular(4.0),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0),
+              child: Text(
+                'Login here',
+                style: TextStyle(
+                  color: Theme.of(context).primaryColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
+        ],
+      ),
         ],
       ),
     );

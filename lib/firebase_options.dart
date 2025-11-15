@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -66,6 +63,15 @@ class DefaultFirebaseOptions {
     androidClientId: '327469030653-rjqul9vt5mpnecmngf2665ilngck3u9g.apps.googleusercontent.com',
     iosClientId: '327469030653-ucvns77jb8q23aebrf5hs8oj4dlb222d.apps.googleusercontent.com',
     iosBundleId: 'com.example.ageLink',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyA3E1VVnvaZkyz5f3Z1uyXsKlXklALw6MI',
+    appId: '1:327469030653:web:2d4ab3db1ead1f6373b294',
+    messagingSenderId: '327469030653',
+    projectId: 'agelink-f4680',
+    authDomain: 'agelink-f4680.firebaseapp.com',
+    storageBucket: 'agelink-f4680.firebasestorage.app',
   );
 
 }

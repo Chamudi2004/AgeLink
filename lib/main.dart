@@ -3,7 +3,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'firebase_options.dart';
+import 'constants.dart';
 
 import 'login_screen.dart';
 import 'signup_screen.dart';
@@ -13,21 +15,16 @@ import 'home_page.dart';
 // 1. MAIN APPLICATION START - ASYNC INITIALIZATION
 
 void main() {
-  // Ensure Flutter binding is initialized before using plugins
   WidgetsFlutterBinding.ensureInitialized();
-  // Start the application with a widget that handles Firebase initialization safety
   runApp(const FirebaseInitializer());
 }
 
-// ----------------------------------------------------------------------------
 // 2. FIREBASE INITIALIZER - SAFE ENTRY POINT
-// ----------------------------------------------------------------------------
 
-// This widget ensures Firebase is initialized before AuthApp is rendered.
+
 class FirebaseInitializer extends StatelessWidget {
   const FirebaseInitializer({super.key});
 
-  // The Future function that performs the initialization
   Future<FirebaseApp> _initializeFirebase() async {
     return await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -97,28 +94,25 @@ class FirebaseInitializer extends StatelessWidget {
   }
 }
 
-// ----------------------------------------------------------------------------
-// 3. THEME & ROOT WIDGET (Protected)
-// ----------------------------------------------------------------------------
 
-// Defines the root widget for the application, setting up the theme.
+// 3. THEME & ROOT WIDGET (Protected)
+
+
 class AuthApp extends StatelessWidget {
-  // Private constructor to ensure it is only created by FirebaseInitializer after success
   const AuthApp._();
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Agelink Authentication',
+      title: 'AgeLink',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // Agelink's primary color
         primarySwatch: Colors.green,
         primaryColor: const Color(0xFF0D47A1),
         fontFamily: 'Inter',
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.grey[50], // Light background for inputs
+          fillColor: Colors.grey[50],
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
             borderSide: BorderSide.none,
@@ -147,21 +141,16 @@ class AuthApp extends StatelessWidget {
           ),
         ),
       ),
-      // Use StreamBuilder to check authentication state globally in real-time
+
       home: StreamBuilder<User?>(
-        // This is now safe because FirebaseInitializer guarantees initialization
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
-          // Show a spinner while the connection state is waiting
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
-          // If the user is logged in (snapshot.hasData returns true), show the Home Page
           if (snapshot.hasData) {
-            // THIS IS THE CRITICAL LINE
             return const HomePage();
           }
-          // Otherwise, show the Authentication wrapper (Login/Signup screens)
           return const AuthWrapper();
         },
       ),
@@ -169,9 +158,7 @@ class AuthApp extends StatelessWidget {
   }
 }
 
-// ----------------------------------------------------------------------------
 // 4. AUTH WRAPPER (State Management for Screen Switching and Auth Logic)
-// ----------------------------------------------------------------------------
 
 enum AuthView { login, signup, forgotPassword }
 
@@ -184,10 +171,12 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   AuthView _currentView = AuthView.login;
-  // Instantiating services here is safe because the AuthApp waits for Firebase initialization.
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final _storage = const FlutterSecureStorage();
+
+  bool _isSigningIn = false;
 
   void setView(AuthView view) {
     setState(() {
@@ -195,41 +184,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
     });
   }
 
-  // Helper function to save profile data (used for both Email/Password and Google Sign-in)
-  Future<void> _saveUserProfile(User user, String? name) async {
-    // 1. Get the Firebase app ID
-    const appId = String.fromEnvironment('app_id', defaultValue: 'default-app-id');
-    // 2. Define the secure Firestore path for the user's private data:
-    final userProfilePath = 'artifacts/$appId/users/${user.uid}/profile/details';
-
-    // 3. Check if the profile document already exists (important for social logins)
-    final profileRef = _firestore.doc(userProfilePath);
-    final profileSnapshot = await profileRef.get();
-
-    if (!profileSnapshot.exists) {
-      final userData = {
-        'uid': user.uid,
-        'email': user.email ?? 'N/A',
-        // Use the provided name, or fall back to user's display name or a generic name
-        'name': name ?? user.displayName ?? 'Google User',
-        'createdAt': FieldValue.serverTimestamp(),
-      };
-      // Save user details (name) to Firestore in the secure location
-      await profileRef.set(userData);
-      print("New user profile saved successfully to path: $userProfilePath");
-    } else {
-      print("Existing user profile found. Skipping Firestore write.");
-    }
-  }
-
   // CENTRALIZED AUTHENTICATION HANDLER
   void _handleAuthAction(String action, Map<String, dynamic> data) async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-      barrierDismissible: false,
-    );
+    setState(() { _isSigningIn = true; });
 
     try {
       if (action == 'Sign Up') {
@@ -238,11 +195,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
           password: data['password'],
         );
 
-        await _saveUserProfile(userCredential.user!, data['name']);
+        // Save user details to the simple 'users/{uid}' path
+        await _firestore
+            .collection('artifacts')
+            .doc(kAppId)
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .collection('profile')
+            .doc('details')
+            .set({
+          'uid': userCredential.user!.uid,
+          'email': data['email'],
+          'name': data['name'],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
 
-        // Success dialog and navigation (pop loading dialog first)
-        Navigator.of(context).pop();
-        _showStatusDialog('Success', 'Account created! Logging in...');
 
       } else if (action == 'Log In') {
         await _auth.signInWithEmailAndPassword(
@@ -250,16 +217,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
           password: data['password'],
         );
 
-        // Success: Pop loading, StreamBuilder handles redirect
-        Navigator.of(context).pop();
-        _showStatusDialog('Success', 'Log In successful! Redirecting...');
+        if (data['rememberMe'] == true) {
+          await _storage.write(key: 'remembered_email', value: data['email']);
+        } else {
+          await _storage.delete(key: 'remembered_email');
+        }
 
       } else if (action == 'Google Sign In') {
         final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
         if (googleUser == null) {
-          // The user canceled the sign-in process
-          Navigator.of(context).pop();
+          setState(() { _isSigningIn = false; });
           return;
         }
 
@@ -270,28 +238,39 @@ class _AuthWrapperState extends State<AuthWrapper> {
         );
 
         final UserCredential userCredential = await _auth.signInWithCredential(credential);
+        final userRef = _firestore
+            .collection('artifacts')
+            .doc(kAppId)
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .collection('profile')
+            .doc('details');
+        final doc = await userRef.get();
 
-        // Save profile data (especially name) for new Google users
-        await _saveUserProfile(userCredential.user!, userCredential.user!.displayName);
-
-        // Success: Pop loading, StreamBuilder handles redirect
-        Navigator.of(context).pop();
-        _showStatusDialog('Success', 'Google Sign In successful! Redirecting...');
+        if (!doc.exists) {
+          await userRef.set({
+            'uid': userCredential.user!.uid,
+            'email': userCredential.user!.email,
+            'name': userCredential.user!.displayName ?? 'Google User',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
 
       } else if (action == 'Forgot Password') {
         await _auth.sendPasswordResetEmail(email: data['email']);
 
-        // Success: Pop loading, show dialog, then navigate to login
-        Navigator.of(context).pop();
+        setState(() { _isSigningIn = false; });
         _showStatusDialog(
             'Password Reset Sent',
             'A password reset link has been sent to ${data['email']}. Please check your email.',
                 () => setView(AuthView.login)
         );
       }
+
+
     } on FirebaseAuthException catch (e) {
-      // Pop loading dialog on error
-      Navigator.of(context).pop();
+      setState(() { _isSigningIn = false; });
+
       String message = 'An unknown error occurred.';
       if (e.code == 'weak-password') {
         message = 'The password provided is too weak.';
@@ -306,20 +285,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
       _showStatusDialog('Error', message);
     } catch (e) {
-      Navigator.of(context).pop();
+      setState(() { _isSigningIn = false; });
       _showStatusDialog('Error', e.toString());
       print(e);
     }
   }
 
-  // Custom function to display status messages (without dismissible loading)
+
   void _showStatusDialog(String title, String message, [VoidCallback? onDismiss]) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(title, style: TextStyle(color: title == 'Success' ? const Color(0xFF10B981) : Colors.red)),
+          title: Text(title, style: TextStyle(color: title == 'Success' || title == 'Password Reset Sent' ? const Color(0xFF10B981) : Colors.red)),
           content: Text(message),
           actions: <Widget>[
             TextButton(
@@ -337,29 +316,23 @@ class _AuthWrapperState extends State<AuthWrapper> {
     );
   }
 
-  // Renders the current view based on the state
-// [Inside main.dart -> class _AuthWrapperState]
-
-  // [Inside main.dart -> class _AuthWrapperState]
-
   @override
   Widget build(BuildContext context) {
-    // This is only rendered if the user is NOT logged in
     return Scaffold(
-      body: Container( // <-- 2. WRAPPED the body with a Container
+      body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration( // <-- 3. ADDED the gradient decoration
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFFF7FBFF),       // Fading to white
-              Color(0xFFBCD8FF), // Very light blue (like your image)
+              Color(0xFFF7FBFF),
+              Color(0xFFBCD8FF),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
-        child: Center( // <-- This 'Center' was the original body
+        child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(32.0),
             child: ConstrainedBox(
@@ -371,11 +344,30 @@ class _AuthWrapperState extends State<AuthWrapper> {
                   Image.asset(
                     'assets/agelink_logo.png',
                     height: 120,
+                    errorBuilder: (context, error, stackTrace) => const SizedBox(
+                      height: 120,
+                      child: Center(
+                        child: Text(
+                          'AgeLink',
+                          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 15),
 
-                  // Render the selected authentication screen
-                  _buildAuthScreen(),
+
+                  if (_isSigningIn)
+                    Container(
+                      height: 300,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                    _buildAuthScreen(),
                 ],
               ),
             ),
