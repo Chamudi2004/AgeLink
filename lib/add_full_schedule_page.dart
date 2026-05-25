@@ -1,10 +1,14 @@
+// lib/add_full_schedule_page.dart
+
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
-
+// --- (Gradient constants are correct) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -29,7 +33,6 @@ class _MedicationEntry {
         frequency = 'Daily';
 }
 
-
 class AddFullSchedulePage extends StatefulWidget {
   const AddFullSchedulePage({super.key});
 
@@ -40,13 +43,25 @@ class AddFullSchedulePage extends StatefulWidget {
 class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
   final _formKey = GlobalKey<FormState>();
   final _scheduleNameController = TextEditingController();
-
   final List<_MedicationEntry> _medicationEntries = [_MedicationEntry()];
-
   bool _isLoading = false;
 
-  final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
+
+  // --- 1. Point to the RTDB ---
+  late final DatabaseReference _remindersRef;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_currentUser != null) {
+      _remindersRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('reminders/${_currentUser!.uid}');
+    }
+  }
+  // --- END OF FIX ---
 
 
   Widget _buildGradientButton({
@@ -56,6 +71,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     required Gradient gradient,
     double verticalPadding = 16.0,
   }) {
+    final bool isEnabled = onPressed != null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -65,15 +81,23 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          elevation: 5,
         ),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: gradient,
+            gradient: isEnabled
+                ? gradient
+                : LinearGradient(
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
             borderRadius: BorderRadius.circular(12.0),
           ),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            padding: EdgeInsets.symmetric(vertical: verticalPadding),
             alignment: Alignment.center,
             child: (icon != null)
                 ? Row(
@@ -118,40 +142,57 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     }
   }
 
-
   void _removeTime(int entryIndex, TimeOfDay time) {
     setState(() {
       _medicationEntries[entryIndex].times.remove(time);
     });
   }
 
+  // --- 2. Save logic is rewritten for RTDB ---
   Future<void> _saveSchedule() async {
     if (!_formKey.currentState!.validate()) return;
     if (_currentUser == null) return;
 
     setState(() { _isLoading = true; });
 
-    final schedulesCollection = FirebaseFirestore.instance
-        .collection('artifacts')
-        .doc(_appId)
-        .collection('users')
-        .doc(_currentUser!.uid)
-        .collection('medicationSchedules');
-
     try {
-      final List<Map<String, dynamic>> medicationsList = [];
+      // Data structure for the Realtime Database (RTDB) (current active schedule)
+      final Map<String, dynamic> rtdbScheduleObject = {};
+
+      // Data structure for the Firestore History (full schedule record)
+      final List<Map<String, dynamic>> firestoreMedicationsList = [];
+
       for (final entry in _medicationEntries) {
         if (entry.name.text.isNotEmpty && entry.times.isNotEmpty) {
-          medicationsList.add({
+
+          // Prepare the list of times for the Firestore entry
+          final List<String> timesList = [];
+
+          for (var time in entry.times) {
+            String timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+            // 1. Prepare data for RTDB (key/value pair structure for device consumption)
+            String key = "${entry.name.text}_${timeStr.replaceAll(":", "")}";
+            rtdbScheduleObject[key] = {
+              'name': entry.name.text,
+              'dosage': entry.dosage.text,
+              'time': timeStr,
+            };
+
+            timesList.add(timeStr);
+          }
+
+          // 2. Prepare data for Firestore (list structure for history display)
+          firestoreMedicationsList.add({
             'name': entry.name.text,
             'dosage': entry.dosage.text,
-            'times': entry.times.map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}').toList(),
             'frequency': entry.frequency,
+            'times': timesList,
           });
         }
       }
 
-      if (medicationsList.isEmpty) {
+      if (rtdbScheduleObject.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please add at least one valid medication.')),
         );
@@ -159,34 +200,40 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         return;
       }
 
-      WriteBatch batch = FirebaseFirestore.instance.batch();
+      // --- CRITICAL FIRESTORE UPDATE: 1. Set all old schedules to inactive ---
+      final firestoreRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .collection('medicationSchedules');
 
-      QuerySnapshot oldSchedule = await schedulesCollection
-          .where('isActive', isEqualTo: true)
-          .limit(1)
-          .get();
-
-      if (oldSchedule.docs.isNotEmpty) {
-        batch.update(oldSchedule.docs.first.reference, {'isActive': false});
+      // We need to fetch all existing documents and set their 'isActive' flag to false.
+      final existingSchedules = await firestoreRef.where('isActive', isEqualTo: true).get();
+      for (final doc in existingSchedules.docs) {
+        await doc.reference.update({'isActive': false});
       }
 
-      DocumentReference newScheduleRef = schedulesCollection.doc();
-      batch.set(newScheduleRef, {
-        'scheduleName': _scheduleNameController.text.isNotEmpty
-            ? _scheduleNameController.text
-            : 'My New Schedule',
-        'createdAt': FieldValue.serverTimestamp(),
-        'isActive': true,
-        'medications': medicationsList,
-      });
+      // --- CRITICAL FIRESTORE UPDATE: 2. Add the new schedule as the active one ---
+      final firestoreScheduleData = {
+        'scheduleName': _scheduleNameController.text,
+        'isActive': true, // Mark this new schedule as active
+        'createdAt': Timestamp.now(),
+        'medications': firestoreMedicationsList,
+        // You might add an ID to link to RTDB if needed, but not necessary for history
+      };
 
-      await batch.commit();
+      await firestoreRef.add(firestoreScheduleData);
 
+      // --- RTDB UPDATE: 3. Overwrite the current active schedule in RTDB ---
+      await _remindersRef.child('schedule/med_times').set(rtdbScheduleObject);
+
+      // --- RTDB UPDATE: 4. Update the device status ---
+      await _remindersRef.child('schedule/current_status').set("IDLE");
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('New schedule saved!')),
+          const SnackBar(content: Text('New schedule saved and activated!')),
         );
+        // Navigate back after successful save
         Navigator.pop(context);
       }
     } catch (e) {
@@ -195,6 +242,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
           SnackBar(content: Text('Failed to save schedule: $e')),
         );
       }
+      print("Schedule Save Error: $e"); // Log error for debugging
     } finally {
       if (mounted) {
         setState(() { _isLoading = false; });
@@ -224,7 +272,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- 1. Schedule Name ---
                     TextFormField(
                       controller: _scheduleNameController,
                       decoration: const InputDecoration(
@@ -243,8 +290,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const Divider(height: 20),
-
-                    // --- 2. List of Medication Forms ---
                     ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -254,8 +299,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       },
                     ),
                     const SizedBox(height: 16),
-
-                    // --- 3. "Add Another" Button ---
                     TextButton.icon(
                       onPressed: _addMedicationRow,
                       icon: const Icon(Icons.add_circle_outline),
@@ -265,8 +308,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 ),
               ),
             ),
-
-            // --- 4. "Save" Button ---
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: _isLoading
@@ -293,7 +334,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Name & Dosage ---
             Row(
               children: [
                 Expanded(
@@ -314,8 +354,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // --- 3. ADDED FREQUENCY CHIPS ---
             const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold)),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -345,8 +383,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // --- Times ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -366,7 +402,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 );
               }).toList(),
             ),
-
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(

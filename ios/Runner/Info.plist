@@ -47,5 +47,11 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSBluetoothAlwaysUsageDescription</key>
+        <string>This app needs Bluetooth to find and connect to your AgeLink device.</string>
+        <key>NSBluetoothPeripheralUsageDescription</key>
+        <string>This app needs Bluetooth to configure your AgeLink device.</string>
+        <key>NSLocationWhenInUseUsageDescription</key>
+        <string>This app needs location to scan for nearby Bluetooth devices.</string>
 	</dict>
 </plist>

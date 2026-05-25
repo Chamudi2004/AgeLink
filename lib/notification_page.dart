@@ -1,7 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// lib/notification_page.dart
 
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart'; // <-- ADDED for better date formatting
 
 class DoseNotification {
   final String docId;
@@ -9,6 +12,7 @@ class DoseNotification {
   final String time;
   final DateTime date;
   final bool isTaken;
+  final String reminderState;
 
   DoseNotification({
     required this.docId,
@@ -16,21 +20,32 @@ class DoseNotification {
     required this.time,
     required this.date,
     required this.isTaken,
+    required this.reminderState,
   });
 
-  factory DoseNotification.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory DoseNotification.fromRTDB(DataSnapshot snapshot) {
+    final data = Map<String, dynamic>.from(snapshot.value as Map);
 
-    DateTime doseDate = (data['date'] is Timestamp)
-        ? (data['date'] as Timestamp).toDate()
-        : DateTime.now();
+    DateTime doseDate = DateTime.now();
+    if (data['date'] != null && data['date'] is int) {
+      doseDate = DateTime.fromMillisecondsSinceEpoch(data['date']);
+    } else if (data['confirmed_at_timestamp'] != null && data['confirmed_at_timestamp'] is int) {
+      doseDate = DateTime.fromMillisecondsSinceEpoch(data['confirmed_at_timestamp']);
+    }
+
+    String state = (data['reminder_state'] ?? 'Missed').toString();
+    String medName = (data['medicine_name'] ?? 'Unknown Medication').toString();
+    String confirmedAt = (data['confirmed_at'] ?? 'N/A').toString();
+
+    bool taken = (state == 'Green' || state == 'Orange' || state == 'Red');
 
     return DoseNotification(
-      docId: doc.id,
-      medicationName: data['medicationName'] ?? 'Unknown Medication',
-      time: data['time'] ?? 'N/A',
+      docId: snapshot.key ?? '',
+      medicationName: medName,
+      time: confirmedAt,
       date: doseDate,
-      isTaken: data['isTaken'] ?? false,
+      isTaken: taken,
+      reminderState: state,
     );
   }
 }
@@ -44,28 +59,63 @@ class NotificationPage extends StatefulWidget {
 }
 
 class _NotificationPageState extends State<NotificationPage> {
-
-  final String appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final String? userId = FirebaseAuth.instance.currentUser?.uid;
 
-  CollectionReference? _alertsCollection;
+  DatabaseReference? _alertsRef;
 
   @override
   void initState() {
     super.initState();
 
     if (userId != null) {
-      _alertsCollection = FirebaseFirestore.instance
-          .collection('artifacts')
-          .doc(appId)
-          .collection('users')
-          .doc(userId)
-          .collection('doses');
+      _alertsRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('reminders/$userId/confirmation');
     }
   }
 
+  // Improved date formatting helper
   String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final doseDay = DateTime(date.year, date.month, date.day);
+
+    if (doseDay == today) {
+      return 'Today';
+    } else if (doseDay == yesterday) {
+      return 'Yesterday';
+    } else {
+      return DateFormat('EEEE, MMMM d, yyyy').format(date);
+    }
+  }
+
+  Widget _buildDateHeader(DateTime date) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16.0, bottom: 8.0, left: 8.0, right: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Divider(color: Colors.grey.shade400, height: 1.0),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Text(
+              _formatDate(date),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Divider(color: Colors.grey.shade400, height: 1.0),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -73,15 +123,12 @@ class _NotificationPageState extends State<NotificationPage> {
     if (userId == null) {
       return const Center(child: Text("Please log in to view alerts.", style: TextStyle(fontSize: 18)));
     }
-    if (_alertsCollection == null) {
+    if (_alertsRef == null) {
       return const Center(child: Text("Error: Alerts collection path is invalid.", style: TextStyle(fontSize: 18)));
     }
 
-    // --- (FIX: REMOVED THE Scaffold AND AppBar WIDGETS) ---
-    // The GradientScaffold from home_page.dart will provide the background and app bar.
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: _alertsCollection!.orderBy('date', descending: true).snapshots(),
+    return StreamBuilder<DatabaseEvent>(
+      stream: _alertsRef!.orderByChild('date').onValue,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -91,7 +138,18 @@ class _NotificationPageState extends State<NotificationPage> {
           return Center(child: Text('Error loading alerts: ${snapshot.error}'));
         }
 
-        final alerts = snapshot.data!.docs.map((doc) => DoseNotification.fromFirestore(doc)).toList();
+        final List<DoseNotification> alerts = [];
+        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          for (final child in snapshot.data!.snapshot.children) {
+            try {
+              alerts.add(DoseNotification.fromRTDB(child));
+            } catch (e) {
+              print('Error parsing notification: $e');
+            }
+          }
+          // IMPORTANT: Sorting by date is CRUCIAL for grouping logic
+          alerts.sort((a, b) => b.date.compareTo(a.date));
+        }
 
         if (alerts.isEmpty) {
           return const Center(
@@ -106,43 +164,64 @@ class _NotificationPageState extends State<NotificationPage> {
           );
         }
 
-        // The list will now be the main widget returned by this page
         return ListView.builder(
           padding: const EdgeInsets.all(8.0),
           itemCount: alerts.length,
           itemBuilder: (context, index) {
             final notification = alerts[index];
+            final DateTime currentDoseDate = DateTime(notification.date.year, notification.date.month, notification.date.day);
+
+            // Check if this item should display a date header
+            bool showDateHeader = true;
+            if (index > 0) {
+              final previousNotification = alerts[index - 1];
+              final DateTime previousDoseDate = DateTime(previousNotification.date.year, previousNotification.date.month, previousNotification.date.day);
+
+              // Only show the header if the current date is different from the previous date
+              if (currentDoseDate.isAtSameMomentAs(previousDoseDate)) {
+                showDateHeader = false;
+              }
+            }
 
             final statusColor = notification.isTaken ? Colors.green.shade600 : Colors.red.shade600;
             final statusIcon = notification.isTaken ? Icons.check_circle_outline : Icons.cancel_outlined;
-            final statusText = notification.isTaken ? 'Taken' : 'Missed';
+            final statusText = notification.isTaken ? 'Taken (${notification.reminderState})' : 'Missed';
 
-            return Card(
-              elevation: 2,
-              margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: ListTile(
-                leading: Icon(
-                  statusIcon,
-                  color: statusColor,
-                  size: 32,
-                ),
-                title: Text(
-                  notification.medicationName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                subtitle: Text(
-                  '$statusText at ${notification.time} on ${_formatDate(notification.date)}',
-                  style: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
-                ),
-                trailing: Chip(
-                  label: Text(
-                    notification.time,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Insert the Date Header if needed
+                if (showDateHeader) _buildDateHeader(notification.date),
+
+                // 2. The Notification ListTile
+                Card(
+                  elevation: 2,
+                  margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    leading: Icon(
+                      statusIcon,
+                      color: statusColor,
+                      size: 32,
+                    ),
+                    title: Text(
+                      notification.medicationName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    subtitle: Text(
+                      '$statusText at ${notification.time}', // Removed date from subtitle
+                      style: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
+                    ),
+                    trailing: Chip(
+                      label: Text(
+                        notification.time,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: statusColor.withOpacity(0.8),
+                    ),
                   ),
-                  backgroundColor: statusColor.withOpacity(0.8),
                 ),
-              ),
+              ],
             );
           },
         );

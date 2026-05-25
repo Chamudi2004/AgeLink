@@ -1,18 +1,26 @@
 // lib/schedule_sync_service.dart
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart'; // <-- 1. ADD THIS IMPORT
 import 'package:firebase_database/firebase_database.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'constants.dart'; // For kAppId
 
 class ScheduleSyncService {
-
-  /// This function is called *after* any change.
-  /// It reads the user's *active* schedule from Firestore
+  /// This function reads the user's *active* schedule from Firestore
   /// and syncs it to the Realtime Database.
   static Future<void> triggerSync() async {
     final _auth = FirebaseAuth.instance;
     final _firestore = FirebaseFirestore.instance;
-    final _database = FirebaseDatabase.instance;
+
+    // --- 2. THIS IS THE FIX ---
+    // We must specify the URL of your database
+    final _database = FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+    );
+    // --- END OF FIX ---
+
     final uid = _auth.currentUser?.uid;
 
     if (uid == null) return; // Not logged in
@@ -21,7 +29,7 @@ class ScheduleSyncService {
       // 1. Find the user's CURRENTLY ACTIVE schedule in Firestore
       final activeScheduleQuery = await _firestore
           .collection('artifacts')
-          .doc(const String.fromEnvironment('app_id', defaultValue: 'default-app-id'))
+          .doc(kAppId)
           .collection('users')
           .doc(uid)
           .collection('medicationSchedules')
@@ -34,10 +42,12 @@ class ScheduleSyncService {
       if (activeScheduleQuery.docs.isNotEmpty) {
         // If an active schedule exists, get its medication list
         final scheduleData = activeScheduleQuery.docs.first.data();
-        medicationsList = List<Map<String, dynamic>>.from(scheduleData['medications'] ?? []);
+        medicationsList =
+        List<Map<String, dynamic>>.from(scheduleData['medications'] ?? []);
       }
 
       // 2. Create the JSON object for RTDB
+      // This matches the structure your device expects (e.g., "Insulin_1000")
       final rtdbScheduleObject = <String, dynamic>{};
       for (var med in medicationsList) {
         final medName = med['name'] ?? 'Unknown';
@@ -45,6 +55,7 @@ class ScheduleSyncService {
         final medTimes = List<String>.from(med['times'] ?? []);
 
         for (var time in medTimes) {
+          // Creates a key like "Insulin_2219"
           final key = "${medName}_${time.replaceAll(":", "")}";
           rtdbScheduleObject[key] = {
             "dosage": medDosage,
@@ -54,18 +65,17 @@ class ScheduleSyncService {
         }
       }
 
-      // 3. Get the RTDB path
+      // 3. Get the RTDB path your device reads
       final rtdbRef = _database.ref('reminders/$uid/schedule/med_times');
 
       // 4. Overwrite the "med_times" object with the new schedule
-      // If the list is empty (no active schedule), this will correctly
-      // send an empty object, clearing the device's schedule.
+      // If the list is empty, this correctly sends an empty object.
       await rtdbRef.set(rtdbScheduleObject);
 
       print('SUCCESS: Synced schedule to RTDB for user $uid');
-
     } catch (e) {
       print('ERROR: Failed to sync schedule to RTDB: $e');
+      // We don't re-throw the error, so the app doesn't crash
     }
   }
 }

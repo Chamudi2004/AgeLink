@@ -1,11 +1,15 @@
+// lib/medication_schedule_page.dart
+
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'add_full_schedule_page.dart';
 import 'medication_history_page.dart';
 import 'edit_single_medication_page.dart';
 
+// ... (Gradients are unchanged) ...
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -13,7 +17,7 @@ const kPrimaryGradient = LinearGradient(
 );
 
 const kOrangeGradient = LinearGradient(
-  colors: [Color(0xFFFFA726), Color(0xFFF57C00)], // Orange gradient
+  colors: [Color(0xFFFFA726), Color(0xFFF57C00)],
   begin: Alignment.centerLeft,
   end: Alignment.centerRight,
 );
@@ -26,13 +30,22 @@ class MedicationSchedulePage extends StatefulWidget {
 }
 
 class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  String get _schedulesCollectionPath {
-    return 'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
+  // --- 1. Point to RTDB ---
+  late final DatabaseReference _medsRef;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_currentUser != null) {
+      _medsRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('reminders/${_currentUser!.uid}/schedule/med_times');
+    }
   }
+  // --- END OF FIX ---
 
   void _navigateToAddSchedule() {
     Navigator.of(context).push(
@@ -54,7 +67,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => EditSingleMedicationPage(
-          scheduleId: scheduleId,
+          scheduleId: scheduleId, // This is the RTDB key (e.g., "Insulin_1030")
           medicationData: medication,
         ),
       ),
@@ -82,8 +95,8 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
     FontWeight fontWeight = FontWeight.bold,
     double fontSize = 16,
   }) {
+    // ... (This function is unchanged)
     final bool isEnabled = onPressed != null;
-
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -142,21 +155,46 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
     return Column(
       children: [
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _firestore
-                .collection(_schedulesCollectionPath)
-                .where('isActive', isEqualTo: true)
-                .snapshots(),
+          // --- 2. Stream from RTDB ---
+          child: StreamBuilder<DatabaseEvent>(
+            stream: _medsRef.onValue, // Listen to the med_times path
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text('Error loading data: ${snapshot.error}'));
               }
-
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              // --- 3. Parse RTDB data ---
+              if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.calendar_month, size: 80, color: Constants.darkblue),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No active schedule found.\nTap "Add New" to create one!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 18, color: Constants.mediumGrey),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // Data is a Map
+              final medTimesMap = snapshot.data!.snapshot.value as Map;
+              final medicationsList = medTimesMap.entries.map((entry) {
+                return {
+                  'key': entry.key, // This is the ID (e.g., "Insulin_1030")
+                  'data': Map<String, dynamic>.from(entry.value as Map),
+                };
+              }).toList();
+              // --- END OF FIX ---
+
+              if (medicationsList.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -175,13 +213,15 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
 
               return ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                itemCount: snapshot.data!.docs.length,
+                itemCount: medicationsList.length,
                 itemBuilder: (context, index) {
-                  final activeScheduleDoc = snapshot.data!.docs[index];
-                  final scheduleId = activeScheduleDoc.id;
-                  final scheduleData = activeScheduleDoc.data() as Map<String, dynamic>;
-                  final scheduleName = scheduleData['scheduleName'] ?? 'Current Schedule';
-                  final medicationsList = List<Map<String, dynamic>>.from(scheduleData['medications'] ?? []);
+                  final medEntry = medicationsList[index];
+                  final String medKey = medEntry['key'];
+                  final Map<String, dynamic> med = medEntry['data'];
+
+                  final medName = med['name'] ?? 'No Name';
+                  final medDosage = med['dosage'] ?? 'N/A';
+                  final medTime = med['time'] ?? '00:00'; // Only one time
 
                   return Card(
                     elevation: 2,
@@ -192,73 +232,38 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
                     clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Text(
-                            scheduleName,
-                            textAlign: TextAlign.center,
+                        ListTile(
+                          contentPadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                          title: Text(
+                            medName,
                             style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Constants.darkblue
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Constants.darkblue,
                             ),
                           ),
-                        ),
-
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: medicationsList.length,
-                          itemBuilder: (context, medIndex) {
-                            final med = medicationsList[medIndex];
-                            final medName = med['name'] ?? 'No Name';
-                            final medDosage = med['dosage'] ?? 'N/A';
-                            final medTimes = List<String>.from(med['times'] ?? []);
-                            final medFrequency = med['frequency'] ?? 'Daily';
-
-                            return Column(
-                              children: [
-                                ListTile(
-                                  contentPadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                                  title: Text(
-                                    medName,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Constants.darkblue,
-                                    ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 4),
-                                      Text('Dosage: $medDosage', style: TextStyle(color: Constants.darkGrey)),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Times: ${medTimes.map(_formatTime12h).join(', ')} ($medFrequency)',
-                                        style: TextStyle(
-                                          fontStyle: FontStyle.italic,
-                                          color: Constants.mediumGrey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: IconButton(
-                                    icon: Icon(Icons.edit_outlined, color: Constants.darkblue),
-                                    onPressed: () {
-                                      final originalMedData = medicationsList.firstWhere(
-                                            (m) => m['name'] == medName,
-                                        orElse: () => med,
-                                      );
-                                      _navigateToEditSingleMed(originalMedData, scheduleId);
-                                    },
-                                  ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text('Dosage: $medDosage', style: TextStyle(color: Constants.darkGrey)),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Time: ${_formatTime12h(medTime)}',
+                                style: TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                  color: Constants.mediumGrey,
                                 ),
-                                if (medIndex < medicationsList.length - 1)
-                                  const Divider(height: 1, indent: 16, endIndent: 16),
-                              ],
-                            );
-                          },
+                              ),
+                            ],
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(Icons.edit_outlined, color: Constants.darkblue),
+                            onPressed: () {
+                              // Pass the original map data and the key
+                              _navigateToEditSingleMed(med, medKey);
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -269,6 +274,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
           ),
         ),
 
+        // ... (Bottom buttons are unchanged) ...
         Container(
           padding: const EdgeInsets.all(20.0),
           decoration: BoxDecoration(
@@ -277,7 +283,6 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // "View History" Button
               Expanded(
                 child: _buildGradientButton(
                   onPressed: _navigateToHistory,

@@ -1,11 +1,14 @@
+// lib/home_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'constants.dart';
-import 'pair_device_page.dart';
-// We need to import this to get the gradient button
 import 'medication_schedule_page.dart' show kPrimaryGradient;
-import 'package:intl/intl.dart'; // Import for date formatting
+import 'package:intl/intl.dart';
+
+import 'pair_device_page.dart';
 
 // Helper class for today's doses
 class _TodayDose {
@@ -29,20 +32,22 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _currentDate = 'Loading...';
-  String _currentDayOfWeek = ''; // e.g., "Monday"
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // --- NEW: Reusable Gradient Button ---
+  // --- RTDB REFERENCES ---
+  late final DatabaseReference _remindersRef;
+  late final DatabaseReference _medsRef;
+  late final DatabaseReference _historyRef; // <-- NEW: History reference
+  // --- END OF RTDB REFERENCES ---
+
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
     IconData? icon,
     required Gradient gradient,
   }) {
-    // ... (This function is correct, no changes)
+    // This function remains the same as before
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -83,16 +88,27 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     DateTime now = DateTime.now();
     _currentDate = _formatDate(now);
-    // Get the full day name, e.g., "Monday"
-    _currentDayOfWeek = DateFormat('EEEE').format(now);
+
+    if (_currentUser != null) {
+      final db = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      );
+
+      final uid = _currentUser!.uid;
+      final todayDate = DateFormat('yyyy-MM-dd').format(now);
+
+      _remindersRef = db.ref('reminders/$uid');
+      _medsRef = db.ref('reminders/$uid/schedule/med_times');
+
+      // NEW: Reference to today's dose history
+      _historyRef = db.ref('reminders/$uid/history/$todayDate');
+    }
   }
 
   String _formatDate(DateTime date) {
-    // Use intl package for easier formatting
     return DateFormat('EEEE, MMMM d').format(date);
   }
-
-  // (REMOVED _getDayOfWeek and _getMonth as _formatDate now handles it)
 
   String _formatTime12h(String time24h) {
     try {
@@ -106,8 +122,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildMedicationItem(_TodayDose dose) {
-    // ... (This function is correct, no changes)
+  // --- MODIFIED TO ACCEPT STATUS ---
+  Widget _buildMedicationItem(_TodayDose dose, String status) {
+
+    IconData icon;
+    Color iconColor;
+
+    if (status == 'taken') {
+      icon = Icons.check_circle;
+      iconColor = Constants.greenColor;
+    } else if (status == 'missed') {
+      icon = Icons.cancel;
+      iconColor = Colors.red;
+    } else { // pending or not found
+      icon = Icons.radio_button_unchecked;
+      iconColor = Constants.mediumGrey;
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -146,42 +177,97 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          // --- Display the status icon ---
           Icon(
-            Icons.radio_button_unchecked,
-            color: Constants.mediumGrey,
+            icon,
+            color: iconColor,
             size: 20,
           ),
         ],
       ),
     );
   }
+  // --- END MODIFIED _buildMedicationItem ---
 
   @override
   Widget build(BuildContext context) {
-    // --- UPDATED: New collection path ---
-    final String schedulesCollectionPath = 'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
+    if (_currentUser == null) {
+      return const Center(child: Text('Please log in.'));
+    }
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- Gradient Button ---
+          // Device Status StreamBuilder (Unchanged)
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: _buildGradientButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PairDevicePage(),
+            child: StreamBuilder<DatabaseEvent>(
+              stream: _remindersRef.onValue,
+              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError || !snapshot.hasData || snapshot.data!.snapshot.value == null) {
+                  return _buildGradientButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PairDevicePage(),
+                        ),
+                      );
+                    },
+                    text: 'Connect Device',
+                    icon: Icons.device_hub,
+                    gradient: kPrimaryGradient,
+                  );
+                }
+
+                final dataMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                final data = <String, dynamic>{};
+                dataMap.forEach((key, value) {
+                  data[key.toString()] = value;
+                });
+
+                final deviceData = data['device'] as Map<dynamic, dynamic>? ?? {};
+                final bool isOnline = deviceData['device_active'] ?? false;
+
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isOnline ? Colors.green.shade50 : Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isOnline ? Colors.green.shade300 : Colors.red.shade300,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isOnline ? Icons.wifi : Icons.wifi_off,
+                            color: isOnline ? Colors.green : Colors.red,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            isOnline ? 'Device Connected' : 'Device Offline',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 );
               },
-              text: 'Connect Device',
-              icon: Icons.device_hub, // Example icon
-              gradient: kPrimaryGradient,
             ),
           ),
+
           const SizedBox(height: 16),
 
           // TODAY MEDICATION SCHEDULE HEADER
@@ -208,13 +294,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // --- UPDATED: MEDICATION LIST ---
+          // --- MODIFIED SCHEDULE STREAM BUILDER WITH HISTORY ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: Colors.white, // This white card is correct
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
@@ -225,21 +311,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              // --- UPDATED: StreamBuilder for new logic ---
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _firestore
-                    .collection(schedulesCollectionPath)
-                    .where('isActive', isEqualTo: true) // Get all active schedules
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+              child: StreamBuilder<DatabaseEvent>(
+                stream: _medsRef.onValue, // Listen to the active schedule
+                builder: (context, scheduleSnapshot) {
+                  if (scheduleSnapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  if (snapshot.hasError) {
+                  if (scheduleSnapshot.hasError) {
                     return const Center(
                         child: Text('Error loading schedule.'));
                   }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  if (!scheduleSnapshot.hasData || scheduleSnapshot.data!.snapshot.value == null) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16.0),
                       child: Center(
@@ -247,48 +329,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // --- (THIS IS THE NEW LOGIC) ---
-                  final List<_TodayDose> todayDoses = [];
-
-                  // 1. Loop through all active SCHEDULES
-                  for (var scheduleDoc in snapshot.data!.docs) {
-                    final medications = List<Map<String, dynamic>>.from(scheduleDoc.get('medications') ?? []);
-
-                    // 2. Loop through all PILLS in that schedule
-                    for (final med in medications) {
-                      final String freq = med['frequency'] ?? 'Daily';
-                      bool shouldAddToday = false;
-
-                      // 3. Check the frequency
-                      if (freq == 'Daily') {
-                        shouldAddToday = true;
-                      } else if (freq == 'Weekly') {
-                        // TODO: This assumes you save the "day" in the 'Custom' field
-                        // For now, let's just check against the current day name
-                        // This is a placeholder - you'll need to store which day
-                        // e.g., if (med['dayOfWeek'] == _currentDayOfWeek)
-                        // This is a simple example, assuming "Weekly" means today
-                        if (med['dayOfWeek'] == _currentDayOfWeek) { // Example check
-                          shouldAddToday = true;
-                        }
-                      } else if (freq == 'Custom') {
-                        // TODO: Add logic to check custom dates
-                      }
-
-                      // 4. If it's for today, add its times
-                      if (shouldAddToday) {
-                        final times = List<String>.from(med['times'] ?? []);
-                        for (final time in times) {
-                          todayDoses.add(_TodayDose(
-                            time: time,
-                            name: med['name'] ?? 'N/A',
-                            dosage: med['dosage'] ?? 'N/A',
-                          ));
-                        }
-                      }
-                    }
-                  }
-                  // --- (END OF NEW LOGIC) ---
+                  // 1. Parse the Map of medications from the schedule
+                  final medTimesMap = scheduleSnapshot.data!.snapshot.value as Map;
+                  final todayDoses = medTimesMap.entries.map((entry) {
+                    final med = Map<String, dynamic>.from(entry.value as Map);
+                    return _TodayDose(
+                      time: med['time'] ?? '00:00',
+                      name: med['name'] ?? 'N/A',
+                      dosage: med['dosage'] ?? 'N/A',
+                    );
+                  }).toList();
 
                   // Sort the final list by time
                   todayDoses.sort((a, b) => a.time.compareTo(b.time));
@@ -301,23 +351,46 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
-                  // Build the list view
-                  return Column(
-                    children: [
-                      for (int i = 0; i < todayDoses.length; i++)
-                        Column(
+                  // 2. Use a FutureBuilder to fetch today's history once (using .once() for efficiency)
+                  return FutureBuilder<DatabaseEvent>(
+                      future: _historyRef.once(), // Get history for today
+                      builder: (context, historySnapshot) {
+                        // We still show the doses even if history is loading or has an error
+                        // They will just default to 'pending'.
+
+                        final historyMap = historySnapshot.data?.snapshot.value as Map<dynamic, dynamic>? ?? {};
+
+                        return Column(
                           children: [
-                            _buildMedicationItem(todayDoses[i]),
-                            if (i < todayDoses.length - 1)
-                              const Divider(height: 16, thickness: 0.5, color: Colors.grey),
+                            for (int i = 0; i < todayDoses.length; i++)
+                              Builder(
+                                  builder: (context) {
+                                    final dose = todayDoses[i];
+
+                                    // Create the unique key: "{Name}_{TimeNoColons}"
+                                    final String doseKey = "${dose.name.replaceAll(' ', '_')}_${dose.time.replaceAll(":", "")}";
+
+                                    // Get the status from the history map, default to 'pending'
+                                    final String status = historyMap[doseKey]?['status']?.toString() ?? 'pending';
+
+                                    return Column(
+                                      children: [
+                                        _buildMedicationItem(dose, status), // Pass the status
+                                        if (i < todayDoses.length - 1)
+                                          const Divider(height: 16, thickness: 0.5, color: Colors.grey),
+                                      ],
+                                    );
+                                  }
+                              ),
                           ],
-                        ),
-                    ],
+                        );
+                      }
                   );
                 },
               ),
             ),
           ),
+          // --- END OF MODIFIED SCHEDULE STREAM BUILDER ---
           const SizedBox(height: 24),
         ],
       ),

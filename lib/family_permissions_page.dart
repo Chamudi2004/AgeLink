@@ -1,9 +1,12 @@
+// lib/family_permissions_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'invite_member_page.dart';
-import 'gradient_scaffold.dart'; // <-- 1. IMPORTED
+import 'gradient_scaffold.dart';
+import 'constants.dart'; // <-- 1. ADD THIS IMPORT
 
 // --- (Gradient constants) ---
 const kPrimaryGradient = LinearGradient(
@@ -21,27 +24,29 @@ class FamilyPermissionsPage extends StatefulWidget {
 }
 
 class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
-  // Get the current user
   final User? currentUser = FirebaseAuth.instance.currentUser;
-
-  // This is the reference to the family members subcollection
   late final Stream<QuerySnapshot> _familyStream;
+
+  // --- 2. ADD kAppId ---
+  final String appId = kAppId;
 
   @override
   void initState() {
     super.initState();
     if (currentUser != null) {
-      // Listen to the subcollection of family members
-      // We fixed this path in settings_page, but your code here is
-      // still using the simple 'users' collection.
-      // This is OK, but make sure your Firestore Rules match!
+
+      // --- 3. THIS IS THE FIX ---
+      // Use the correct path that matches your rules
       _familyStream = FirebaseFirestore.instance
+          .collection('artifacts') // <-- Correct
+          .doc(appId)               // <-- Correct
           .collection('users')
           .doc(currentUser!.uid)
           .collection('family_members')
           .snapshots();
+      // --- END OF FIX ---
+
     } else {
-      // Handle case where user is null (shouldn't happen, but safe)
       _familyStream = Stream.empty();
     }
   }
@@ -91,17 +96,14 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
   @override
   Widget build(BuildContext context) {
     if (currentUser == null) {
-      // Safety check if user is logged out
       return Scaffold(
         appBar: AppBar(title: const Text('Family and Permission')),
         body: const Center(child: Text('Please log in.')),
       );
     }
 
-    // --- 2. REPLACED Scaffold with GradientScaffold ---
     return GradientScaffold(
       appBar: AppBar(
-        // 3. Made AppBar transparent
         title: const Text(
           'Family and Permission',
           style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
@@ -141,6 +143,7 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
 
                   // B. Show error
                   if (snapshot.hasError) {
+                    print('Family Stream Error: ${snapshot.error}');
                     return const Center(
                         child: Text('Error loading family members.'));
                   }
@@ -166,7 +169,6 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
               ),
             ),
 
-            // --- 5. REPLACED ElevatedButton with Gradient Button ---
             _buildGradientButton(
               onPressed: () {
                 // TODO: Navigate to an "Edit Access" page
@@ -179,7 +181,6 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
             ),
             const SizedBox(height: 24),
 
-            // 3. "Invite Family Members" Link (Unchanged, as it's a link)
             _buildInviteButton(context),
           ],
         ),
@@ -215,7 +216,6 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
       elevation: 1,
-      // Made the card slightly transparent to blend with the background
       color: Colors.white.withOpacity(0.8),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -243,7 +243,6 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
   }
 
   // Helper widget for the "Invite" link
-  // (This is not a button, so it remains an InkWell)
   Widget _buildInviteButton(BuildContext context) {
     return InkWell(
       onTap: () {

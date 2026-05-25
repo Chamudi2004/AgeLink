@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'constants.dart'; // Make sure your gradients are in here
-import 'gradient_scaffold.dart'; // Import your gradient scaffold
+import 'constants.dart';
+import 'gradient_scaffold.dart';
 
-// --- (Copy these gradient constants from medication_schedule_page.dart) ---
+// --- (Gradient constants are correct) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -26,9 +27,9 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
-  late final DocumentReference _userProfileRef;
 
-  // Controllers for the "Add Contact" dialog
+  late final DatabaseReference _contactsRef;
+
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
 
@@ -38,9 +39,14 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    const appId = String.fromEnvironment('app_id', defaultValue: 'default-app-id');
-    _userProfileRef = FirebaseFirestore.instance
-        .doc('artifacts/$appId/users/${currentUser!.uid}/profile/details');
+
+    // This path is correct according to your logs
+    if (currentUser != null) {
+      _contactsRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('appData/${currentUser!.uid}/emergencyContacts');
+    }
   }
 
   @override
@@ -50,18 +56,18 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
-  // --- (UPDATED Reusable Gradient Button) ---
+  // --- (Gradient Button helper is correct) ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
     IconData? icon,
     required Gradient gradient,
-    // Added these new parameters for flexibility
     EdgeInsets padding = const EdgeInsets.symmetric(vertical: 16.0),
-    double? width = double.infinity, // Default to full-width
+    double? width = double.infinity,
     double fontSize = 16,
     FontWeight fontWeight = FontWeight.bold,
   }) {
+    // ... (This function is correct, no changes)
     return ClipRRect(
       borderRadius: BorderRadius.circular(12.0),
       child: ElevatedButton(
@@ -71,13 +77,13 @@ class _SettingsPageState extends State<SettingsPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          disabledBackgroundColor: Colors.transparent, // Handle disabled state
+          disabledBackgroundColor: Colors.transparent,
         ),
         child: Ink(
           decoration: BoxDecoration(
             gradient: (onPressed != null)
                 ? gradient
-                : LinearGradient( // Gray gradient when disabled
+                : LinearGradient(
               colors: [Colors.grey, Colors.grey.shade500],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
@@ -85,13 +91,13 @@ class _SettingsPageState extends State<SettingsPage> {
             borderRadius: BorderRadius.circular(12.0),
           ),
           child: Container(
-            width: width, // Use the width parameter
-            padding: padding, // Use the padding parameter
+            width: width,
+            padding: padding,
             alignment: Alignment.center,
             child: (icon != null)
                 ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min, // Fit content if width is null
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(icon, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
@@ -105,7 +111,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // --- (UPDATED Dialog to Add New Contact) ---
+  // --- (Dialog to Add New Contact is correct) ---
   void _showAddContactDialog() {
     _nameController.clear();
     _phoneController.clear();
@@ -114,15 +120,14 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          // Styled to match your theme
-          backgroundColor: const Color(0xFFF0F4FF), // Light blue background
+          backgroundColor: const Color(0xFFF0F4FF),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16.0),
           ),
           title: const Text(
             'Add Emergency Contact',
             style: TextStyle(
-              color: Color(0xFF0D47A1), // Dark blue
+              color: Color(0xFF0D47A1),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -133,11 +138,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Name (e.g., Jane Doe)'),
               ),
-
-              // --- (THIS IS THE ADDED SPACING) ---
               const SizedBox(height: 16),
-              // -------------------------------------
-
               TextField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
@@ -146,13 +147,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
           actions: [
-            // "Cancel" button
             TextButton(
               child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
               onPressed: () => Navigator.of(context).pop(),
             ),
-
-            // "Save" Gradient Button
             _buildGradientButton(
               onPressed: () {
                 _saveContact(
@@ -163,9 +161,9 @@ class _SettingsPageState extends State<SettingsPage> {
               },
               text: 'Save',
               gradient: kPrimaryGradient,
-              width: null, // Make button fit its content
+              width: null,
               fontSize: 14,
-              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0), // Smaller padding
+              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
             ),
           ],
         );
@@ -173,20 +171,19 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // --- (Firebase Logic) ---
+  // --- (Firebase Logic for RTDB is correct) ---
   void _saveContact({required String name, required String phone}) {
     if (name.isEmpty || phone.isEmpty) return;
-    final newContact = {'name': name, 'phone': phone};
+    if (currentUser == null) return; // Safety check
 
-    _userProfileRef.set({
-      'emergencyContacts': FieldValue.arrayUnion([newContact])
-    }, SetOptions(merge: true));
+    // Save the phone number as a String, not a Number
+    final newContact = {'name': name, 'phone': phone};
+    _contactsRef.push().set(newContact);
   }
 
-  void _deleteContact(Map<String, dynamic> contact) {
-    _userProfileRef.update({
-      'emergencyContacts': FieldValue.arrayRemove([contact])
-    });
+  void _deleteContact(String contactKey) {
+    if (currentUser == null) return; // Safety check
+    _contactsRef.child(contactKey).remove();
   }
 
   @override
@@ -218,29 +215,19 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 16),
 
-            StreamBuilder<DocumentSnapshot>(
-              stream: _userProfileRef.snapshots(),
-              builder: (context, snapshot) {
+            // 5. UPDATED StreamBuilder for RTDB
+            StreamBuilder(
+              stream: _contactsRef.onValue, // Listens to the 'onValue' event
+              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (!snapshot.hasData || !snapshot.data!.exists || snapshot.data!.data() == null) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('Tap "Add New Contact" to get started.', style: TextStyle(color: Colors.grey)),
-                    ),
-                  );
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}"));
                 }
 
-                final data = snapshot.data!.data() as Map<String, dynamic>;
-                final contacts = List<Map<String, dynamic>>.from(
-                    data.containsKey('emergencyContacts')
-                        ? data['emergencyContacts']
-                        : []);
-
-                if (contacts.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(16.0),
@@ -249,21 +236,38 @@ class _SettingsPageState extends State<SettingsPage> {
                   );
                 }
 
+                // RTDB returns data as a Map. We need to convert it.
+                Map<dynamic, dynamic> contactsMap =
+                snapshot.data!.snapshot.value as Map;
+
+                // Convert the Map to a List for the ListView
+                final contactsList = contactsMap.entries.map((entry) {
+                  // --- THIS IS THE FIX ---
+                  // We'll convert the data to Strings right here to be safe
+                  final data = Map<String, dynamic>.from(entry.value as Map);
+                  return {
+                    'key': entry.key,
+                    'name': (data['name'] ?? 'No Name').toString(),
+                    'phone': (data['phone'] ?? 'No Phone').toString(),
+                  };
+                  // --- END OF FIX ---
+                }).toList();
+
                 return ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: contacts.length,
+                  itemCount: contactsList.length,
                   itemBuilder: (context, index) {
-                    final contact = contacts[index];
+                    final contact = contactsList[index];
                     return Card(
                       elevation: 1,
                       margin: const EdgeInsets.only(bottom: 8.0),
                       child: ListTile(
-                        title: Text(contact['name'] ?? 'No Name'),
-                        subtitle: Text(contact['phone'] ?? 'No Phone'),
+                        title: Text(contact['name']!),
+                        subtitle: Text(contact['phone']!), // This is now safe
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline, color: Colors.red),
-                          onPressed: () => _deleteContact(contact),
+                          onPressed: () => _deleteContact(contact['key']!),
                         ),
                       ),
                     );
@@ -282,7 +286,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const Divider(height: 40),
 
-            // --- "APP SETTINGS" SECTION ---
+            // --- "APP SETTINGS" SECTION (UNCHANGED) ---
             const Text(
               'App Settings',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),

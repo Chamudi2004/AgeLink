@@ -1,1 +1,37 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"agelink-f4680","appId":"1:327469030653:android:9253b654f7b4d81e73b294","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"agelink-f4680","configurations":{"android":"1:327469030653:android:9253b654f7b4d81e73b294","ios":"1:327469030653:ios:3d66147e90b86e9e73b294","web":"1:327469030653:web:2d4ab3db1ead1f6373b294"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "agelink-f4680",
+          "appId": "1:327469030653:android:9253b654f7b4d81e73b294",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "agelink-f4680",
+          "configurations": {
+            "android": "1:327469030653:android:9253b654f7b4d81e73b294",
+            "ios": "1:327469030653:ios:3d66147e90b86e9e73b294",
+            "web": "1:327469030653:web:2d4ab3db1ead1f6373b294"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+        ]
+    }
+  ]
+}

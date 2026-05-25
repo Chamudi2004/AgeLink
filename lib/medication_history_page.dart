@@ -14,7 +14,7 @@ class MedicationHistoryPage extends StatefulWidget {
 
 class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _appId = const String.fromEnvironment('app_id', defaultValue: 'default-app-id');
+  // --- REMOVED _appId variable ---
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
   late final Stream<QuerySnapshot> _historyStream;
@@ -23,8 +23,10 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
   void initState() {
     super.initState();
     if (_currentUser != null) {
+      // --- THIS IS THE CORRECT FIRESTORE PATH ---
       final String schedulesCollectionPath =
-          'artifacts/$_appId/users/${_currentUser!.uid}/medicationSchedules';
+          'users/${_currentUser!.uid}/medicationSchedules';
+      // --- END OF FIX ---
 
       _historyStream = _firestore
           .collection(schedulesCollectionPath)
@@ -64,7 +66,7 @@ class _MedicationHistoryPageState extends State<MedicationHistoryPage> {
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Text(
-                  'Error: ${snapshot.error}\n\nThis query requires a composite index. Please copy the link from your debug console and open it in a browser to create the index.',
+                  'Error: ${snapshot.error}\n\nThis query may require a composite index. Please copy the link from your debug console and open it in a browser to create the index.',
                   textAlign: TextAlign.center,
                 ),
               ),
