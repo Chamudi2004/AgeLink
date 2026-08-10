@@ -1,11 +1,14 @@
+// lib/settings_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
+import 'custom_snackbar.dart'; // Premium notifications
 
-// --- (Gradient constants are correct) ---
+// --- (Gradient constants) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -40,7 +43,6 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
 
-    // This path is correct according to your logs
     if (currentUser != null) {
       _contactsRef = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
@@ -56,39 +58,39 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
-  // --- (Gradient Button helper is correct) ---
+  // --- Premium Button Helper ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
     IconData? icon,
     required Gradient gradient,
-    EdgeInsets padding = const EdgeInsets.symmetric(vertical: 16.0),
+    EdgeInsets padding = const EdgeInsets.symmetric(vertical: 18.0),
     double? width = double.infinity,
     double fontSize = 16,
     FontWeight fontWeight = FontWeight.bold,
   }) {
-    // ... (This function is correct, no changes)
+    final bool isEnabled = onPressed != null;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12.0),
+      borderRadius: BorderRadius.circular(16.0),
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
           disabledBackgroundColor: Colors.transparent,
         ),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: (onPressed != null)
+            gradient: isEnabled
                 ? gradient
                 : LinearGradient(
-              colors: [Colors.grey, Colors.grey.shade500],
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
-            borderRadius: BorderRadius.circular(12.0),
+            borderRadius: BorderRadius.circular(16.0),
           ),
           child: Container(
             width: width,
@@ -99,19 +101,58 @@ class _SettingsPageState extends State<SettingsPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: Colors.white, size: 20),
+                Icon(icon, color: Colors.white, size: 22),
                 const SizedBox(width: 8),
-                Text(text, style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize)),
+                Text(text, style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize, letterSpacing: 0.5)),
               ],
             )
-                : Text(text, style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize)),
+                : Text(text, style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize, letterSpacing: 0.5)),
           ),
         ),
       ),
     );
   }
 
-  // --- (Dialog to Add New Contact is correct) ---
+  // --- Premium Input Field Helper ---
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w600),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Constants.mediumGrey),
+          prefixIcon: Icon(icon, color: const Color(0xFF1E88E5)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.transparent,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        ),
+      ),
+    );
+  }
+
+  // --- Add Contact Dialog ---
   void _showAddContactDialog() {
     _nameController.clear();
     _phoneController.clear();
@@ -120,35 +161,42 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFFF0F4FF),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          title: const Text(
-            'Add Emergency Contact',
-            style: TextStyle(
-              color: Color(0xFF0D47A1),
-              fontWeight: FontWeight.bold,
-            ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E88E5).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.contact_phone_rounded, color: Color(0xFF1E88E5)),
+              ),
+              const SizedBox(width: 12),
+              const Text('Add Contact', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              _buildInputField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Name (e.g., Jane Doe)'),
+                label: 'Name (e.g., Jane Doe)',
+                icon: Icons.person_rounded,
               ),
               const SizedBox(height: 16),
-              TextField(
+              _buildInputField(
                 controller: _phoneController,
+                label: 'Phone (e.g., +9477...)',
+                icon: Icons.phone_rounded,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Phone (e.g., +9477... )'),
               ),
             ],
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           actions: [
             TextButton(
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: Text('Cancel', style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.bold, fontSize: 16)),
               onPressed: () => Navigator.of(context).pop(),
             ),
             _buildGradientButton(
@@ -161,9 +209,9 @@ class _SettingsPageState extends State<SettingsPage> {
               },
               text: 'Save',
               gradient: kPrimaryGradient,
-              width: null,
+              width: 100,
               fontSize: 14,
-              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
             ),
           ],
         );
@@ -171,19 +219,22 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // --- (Firebase Logic for RTDB is correct) ---
   void _saveContact({required String name, required String phone}) {
-    if (name.isEmpty || phone.isEmpty) return;
-    if (currentUser == null) return; // Safety check
+    if (name.isEmpty || phone.isEmpty) {
+      CustomSnackBar.show(context: context, message: 'Please fill in all fields.', isError: true);
+      return;
+    }
+    if (currentUser == null) return;
 
-    // Save the phone number as a String, not a Number
     final newContact = {'name': name, 'phone': phone};
     _contactsRef.push().set(newContact);
+    CustomSnackBar.show(context: context, message: 'Emergency contact saved!');
   }
 
   void _deleteContact(String contactKey) {
-    if (currentUser == null) return; // Safety check
+    if (currentUser == null) return;
     _contactsRef.child(contactKey).remove();
+    CustomSnackBar.show(context: context, message: 'Contact removed.', isError: true);
   }
 
   @override
@@ -196,28 +247,35 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: BackButton(color: Colors.black87),
+        leading: BackButton(color: Constants.darkblue),
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // --- Emergency Contacts Section ---
-            const Text(
-              'Emergency Contacts',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Icon(Icons.emergency_rounded, color: Colors.redAccent, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Emergency Contacts',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'These numbers will be contacted when the SOS button is pressed.',
-              style: TextStyle(color: Colors.grey),
+            const SizedBox(height: 4),
+            Text(
+              'These numbers will be called when the SOS button is triggered.',
+              style: TextStyle(color: Constants.mediumGrey, fontSize: 14),
             ),
             const SizedBox(height: 16),
 
-            // 5. UPDATED StreamBuilder for RTDB
             StreamBuilder(
-              stream: _contactsRef.onValue, // Listens to the 'onValue' event
+              stream: _contactsRef.onValue,
               builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -228,29 +286,28 @@ class _SettingsPageState extends State<SettingsPage> {
                 }
 
                 if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text('No emergency contacts added.', style: TextStyle(color: Colors.grey)),
+                  return Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: Center(
+                      child: Text('No emergency contacts added yet.', style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.w500)),
                     ),
                   );
                 }
 
-                // RTDB returns data as a Map. We need to convert it.
-                Map<dynamic, dynamic> contactsMap =
-                snapshot.data!.snapshot.value as Map;
+                Map<dynamic, dynamic> contactsMap = snapshot.data!.snapshot.value as Map;
 
-                // Convert the Map to a List for the ListView
                 final contactsList = contactsMap.entries.map((entry) {
-                  // --- THIS IS THE FIX ---
-                  // We'll convert the data to Strings right here to be safe
                   final data = Map<String, dynamic>.from(entry.value as Map);
                   return {
                     'key': entry.key,
                     'name': (data['name'] ?? 'No Name').toString(),
                     'phone': (data['phone'] ?? 'No Phone').toString(),
                   };
-                  // --- END OF FIX ---
                 }).toList();
 
                 return ListView.builder(
@@ -259,14 +316,40 @@ class _SettingsPageState extends State<SettingsPage> {
                   itemCount: contactsList.length,
                   itemBuilder: (context, index) {
                     final contact = contactsList[index];
-                    return Card(
-                      elevation: 1,
-                      margin: const EdgeInsets.only(bottom: 8.0),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12.0),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.grey.shade100, width: 1.5),
+                      ),
                       child: ListTile(
-                        title: Text(contact['name']!),
-                        subtitle: Text(contact['phone']!), // This is now safe
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.phone_in_talk_rounded, color: Colors.redAccent, size: 20),
+                        ),
+                        title: Text(
+                          contact['name']!,
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Constants.darkGrey),
+                        ),
+                        subtitle: Text(
+                          contact['phone']!,
+                          style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.w500),
+                        ),
                         trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
                           onPressed: () => _deleteContact(contact['key']!),
                         ),
                       ),
@@ -280,25 +363,54 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildGradientButton(
               onPressed: _showAddContactDialog,
               text: 'Add New Contact',
-              icon: Icons.add,
+              icon: Icons.person_add_rounded,
               gradient: kPrimaryGradient,
             ),
 
-            const Divider(height: 40),
+            const SizedBox(height: 32),
+            Divider(color: Colors.grey.shade300, height: 1),
+            const SizedBox(height: 32),
 
-            // --- "APP SETTINGS" SECTION (UNCHANGED) ---
-            const Text(
-              'App Settings',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            // --- "APP SETTINGS" SECTION ---
+            Row(
+              children: [
+                Icon(Icons.tune_rounded, color: Constants.darkGrey, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'App Settings',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            Card(
-              elevation: 1,
+
+            // Dark Mode Card
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               child: SwitchListTile(
-                title: const Text('Dark Mode'),
-                secondary: Icon(
-                  _isDarkMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-                  color: Colors.grey.shade700,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                title: Text('Dark Mode', style: TextStyle(fontWeight: FontWeight.bold, color: Constants.darkGrey)),
+                secondary: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E88E5).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    color: const Color(0xFF1E88E5),
+                    size: 20,
+                  ),
                 ),
                 value: _isDarkMode,
                 onChanged: (bool newValue) {
@@ -306,27 +418,75 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
             ),
-            const SizedBox(height: 8),
-            Card(
-              elevation: 1,
+            const SizedBox(height: 12),
+
+            // Language Card
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               child: ListTile(
-                leading: Icon(Icons.language_outlined, color: Colors.grey.shade700),
-                title: const Text('Language'),
-                trailing: Text(
-                  _selectedLanguage,
-                  style: const TextStyle(color: Colors.grey, fontSize: 16),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E88E5).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.language_rounded, color: Color(0xFF1E88E5), size: 20),
                 ),
-                onTap: () { /* ... */ },
+                title: Text('Language', style: TextStyle(fontWeight: FontWeight.bold, color: Constants.darkGrey)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_selectedLanguage, style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 8),
+                    Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                  ],
+                ),
+                onTap: () {
+                  CustomSnackBar.show(context: context, message: 'Language settings coming soon.');
+                },
               ),
             ),
-            const SizedBox(height: 8),
-            Card(
-              elevation: 1,
+            const SizedBox(height: 12),
+
+            // Notifications Card
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               child: ListTile(
-                leading: Icon(Icons.notifications_none, color: Colors.grey.shade700),
-                title: const Text('Notification Preferences'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () { /* ... */ },
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E88E5).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.notifications_active_rounded, color: Color(0xFF1E88E5), size: 20),
+                ),
+                title: Text('Notification Preferences', style: TextStyle(fontWeight: FontWeight.bold, color: Constants.darkGrey)),
+                trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                onTap: () {
+                  CustomSnackBar.show(context: context, message: 'Notification settings coming soon.');
+                },
               ),
             ),
           ],

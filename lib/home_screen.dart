@@ -35,11 +35,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final User? _currentUser = FirebaseAuth.instance.currentUser;
 
-  // --- RTDB REFERENCES ---
-  late final DatabaseReference _remindersRef;
+  late final DatabaseReference _deviceRef; // Changed to target only the device node
   late final DatabaseReference _medsRef;
-  late final DatabaseReference _historyRef; // <-- NEW: History reference
-  // --- END OF RTDB REFERENCES ---
+  late final DatabaseReference _historyRef;
 
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
@@ -47,36 +45,45 @@ class _HomeScreenState extends State<HomeScreen> {
     IconData? icon,
     required Gradient gradient,
   }) {
-    // This function remains the same as before
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12.0),
+      borderRadius: BorderRadius.circular(16.0),
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
         ),
         child: Ink(
           decoration: BoxDecoration(
             gradient: gradient,
-            borderRadius: BorderRadius.circular(12.0),
+            borderRadius: BorderRadius.circular(16.0),
           ),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            padding: const EdgeInsets.symmetric(vertical: 18.0),
             alignment: Alignment.center,
             child: (icon != null)
                 ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Icon(icon, color: Colors.white, size: 22),
+                const SizedBox(width: 10),
+                Text(text,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        letterSpacing: 0.5)),
               ],
             )
-                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                : Text(text,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    letterSpacing: 0.5)),
           ),
         ),
       ),
@@ -92,16 +99,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_currentUser != null) {
       final db = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
-          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
-      );
+          databaseURL:
+          "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app");
 
       final uid = _currentUser!.uid;
+      // Get today's date in 'YYYY-MM-DD' format for the history path
       final todayDate = DateFormat('yyyy-MM-dd').format(now);
 
-      _remindersRef = db.ref('reminders/$uid');
-      _medsRef = db.ref('reminders/$uid/schedule/med_times');
+      // We now listen DIRECTLY to the device node for instantaneous real-time updates
+      _deviceRef = db.ref('reminders/$uid/device');
 
-      // NEW: Reference to today's dose history
+      _medsRef = db.ref('reminders/$uid/schedule/med_times');
       _historyRef = db.ref('reminders/$uid/history/$todayDate');
     }
   }
@@ -122,39 +130,70 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // --- MODIFIED TO ACCEPT STATUS ---
   Widget _buildMedicationItem(_TodayDose dose, String status) {
-
     IconData icon;
     Color iconColor;
+    Color bgColor;
+    Color timeColor;
 
     if (status == 'taken') {
-      icon = Icons.check_circle;
+      icon = Icons.check_circle_rounded;
       iconColor = Constants.greenColor;
+      bgColor = Constants.greenColor.withOpacity(0.08);
+      timeColor = Constants.greenColor;
     } else if (status == 'missed') {
-      icon = Icons.cancel;
-      iconColor = Colors.red;
-    } else { // pending or not found
-      icon = Icons.radio_button_unchecked;
+      icon = Icons.cancel_rounded;
+      iconColor = Colors.redAccent;
+      bgColor = Colors.redAccent.withOpacity(0.08);
+      timeColor = Colors.redAccent;
+    } else {
+      // pending or not found
+      icon = Icons.access_time_rounded;
       iconColor = Constants.mediumGrey;
+      bgColor = Colors.white;
+      timeColor = Constants.darkGrey;
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: status == 'pending'
+            ? Border.all(color: Colors.grey.shade200, width: 1.5)
+            : Border.all(color: Colors.transparent, width: 1.5),
+        boxShadow: status == 'pending'
+            ? [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            spreadRadius: 0,
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ]
+            : [],
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(
-            width: 80,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: status == 'pending' ? Colors.grey.shade100 : Colors.white.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(10),
+            ),
             child: Text(
               _formatTime12h(dose.time),
               style: TextStyle(
-                color: Constants.darkGrey,
+                color: timeColor,
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,31 +202,38 @@ class _HomeScreenState extends State<HomeScreen> {
                   dose.name,
                   style: TextStyle(
                     color: Constants.darkGrey,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   dose.dosage,
                   style: TextStyle(
                     color: Constants.mediumGrey,
                     fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
-          // --- Display the status icon ---
-          Icon(
-            icon,
-            color: iconColor,
-            size: 20,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: iconColor.withOpacity(0.1),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
           ),
         ],
       ),
     );
   }
-  // --- END MODIFIED _buildMedicationItem ---
 
   @override
   Widget build(BuildContext context) {
@@ -196,19 +242,54 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Device Status StreamBuilder (Unchanged)
+          const SizedBox(height: 20),
+          // Header Section
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello!',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Constants.mediumGrey,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _currentDate,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Constants.darkGrey,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Device Status StreamBuilder - Now strictly listening to the `device` node
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
             child: StreamBuilder<DatabaseEvent>(
-              stream: _remindersRef.onValue,
+              stream: _deviceRef.onValue,
               builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (snapshot.hasError || !snapshot.hasData || snapshot.data!.snapshot.value == null) {
+
+                // If device node doesn't exist at all, prompt to pair
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    snapshot.data!.snapshot.value == null) {
                   return _buildGradientButton(
                     onPressed: () {
                       Navigator.push(
@@ -224,42 +305,70 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 }
 
-                final dataMap = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-                final data = <String, dynamic>{};
-                dataMap.forEach((key, value) {
-                  data[key.toString()] = value;
-                });
+                // Parse the specific device node data
+                final deviceData = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
 
-                final deviceData = data['device'] as Map<dynamic, dynamic>? ?? {};
-                final bool isOnline = deviceData['device_active'] ?? false;
+                // Explicitly check for the boolean value to ensure real-time accuracy
+                final bool isOnline = deviceData['device_active'] == true;
 
                 return Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   decoration: BoxDecoration(
-                    color: isOnline ? Colors.green.shade50 : Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isOnline ? Colors.green.shade300 : Colors.red.shade300,
+                    gradient: LinearGradient(
+                      colors: isOnline
+                          ? [Constants.greenColor.withOpacity(0.8), Constants.greenColor]
+                          : [Colors.redAccent.shade200, Colors.redAccent.shade400],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isOnline ? Constants.greenColor : Colors.redAccent)
+                            .withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            isOnline ? Icons.wifi : Icons.wifi_off,
-                            color: isOnline ? Colors.green : Colors.red,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            isOnline ? 'Device Connected' : 'Device Offline',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isOnline ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isOnline ? 'Device Connected' : 'Device Offline',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            Text(
+                              isOnline ? 'Ready for today\'s schedule' : 'Please check connection',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -268,130 +377,158 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 32),
 
           // TODAY MEDICATION SCHEDULE HEADER
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text(
-              'Today\'s Medication Schedule',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Constants.darkGrey,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text(
-              _currentDate,
-              style: TextStyle(
-                fontSize: 16,
-                color: Constants.mediumGrey,
-              ),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Row(
+              children: [
+                Icon(Icons.medication_liquid_rounded, color: Constants.darkGrey, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Daily Schedule',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Constants.darkGrey,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // --- MODIFIED SCHEDULE STREAM BUILDER WITH HISTORY ---
+          // --- MODIFIED SCHEDULE STREAM BUILDER WITH HISTORY AND MISSED LOGIC ---
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: StreamBuilder<DatabaseEvent>(
-                stream: _medsRef.onValue, // Listen to the active schedule
-                builder: (context, scheduleSnapshot) {
-                  if (scheduleSnapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (scheduleSnapshot.hasError) {
-                    return const Center(
-                        child: Text('Error loading schedule.'));
-                  }
-                  if (!scheduleSnapshot.hasData || scheduleSnapshot.data!.snapshot.value == null) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Center(
-                          child: Text("No active medication schedule found.")),
-                    );
-                  }
-
-                  // 1. Parse the Map of medications from the schedule
-                  final medTimesMap = scheduleSnapshot.data!.snapshot.value as Map;
-                  final todayDoses = medTimesMap.entries.map((entry) {
-                    final med = Map<String, dynamic>.from(entry.value as Map);
-                    return _TodayDose(
-                      time: med['time'] ?? '00:00',
-                      name: med['name'] ?? 'N/A',
-                      dosage: med['dosage'] ?? 'N/A',
-                    );
-                  }).toList();
-
-                  // Sort the final list by time
-                  todayDoses.sort((a, b) => a.time.compareTo(b.time));
-
-                  if (todayDoses.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Center(
-                          child: Text("No medication scheduled for today.")),
-                    );
-                  }
-
-                  // 2. Use a FutureBuilder to fetch today's history once (using .once() for efficiency)
-                  return FutureBuilder<DatabaseEvent>(
-                      future: _historyRef.once(), // Get history for today
-                      builder: (context, historySnapshot) {
-                        // We still show the doses even if history is loading or has an error
-                        // They will just default to 'pending'.
-
-                        final historyMap = historySnapshot.data?.snapshot.value as Map<dynamic, dynamic>? ?? {};
-
-                        return Column(
-                          children: [
-                            for (int i = 0; i < todayDoses.length; i++)
-                              Builder(
-                                  builder: (context) {
-                                    final dose = todayDoses[i];
-
-                                    // Create the unique key: "{Name}_{TimeNoColons}"
-                                    final String doseKey = "${dose.name.replaceAll(' ', '_')}_${dose.time.replaceAll(":", "")}";
-
-                                    // Get the status from the history map, default to 'pending'
-                                    final String status = historyMap[doseKey]?['status']?.toString() ?? 'pending';
-
-                                    return Column(
-                                      children: [
-                                        _buildMedicationItem(dose, status), // Pass the status
-                                        if (i < todayDoses.length - 1)
-                                          const Divider(height: 16, thickness: 0.5, color: Colors.grey),
-                                      ],
-                                    );
-                                  }
-                              ),
-                          ],
-                        );
-                      }
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: StreamBuilder<DatabaseEvent>(
+              stream: _medsRef.onValue,
+              builder: (context, scheduleSnapshot) {
+                if (scheduleSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: Center(child: CircularProgressIndicator()),
                   );
-                },
-              ),
+                }
+                if (scheduleSnapshot.hasError) {
+                  return const Center(child: Text('Error loading schedule.'));
+                }
+                if (!scheduleSnapshot.hasData ||
+                    scheduleSnapshot.data!.snapshot.value == null) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.inbox_rounded, size: 48, color: Colors.grey.shade300),
+                        const SizedBox(height: 12),
+                        Text(
+                          "No active medication schedule found.",
+                          style: TextStyle(color: Constants.mediumGrey, fontSize: 16),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final medTimesMap =
+                scheduleSnapshot.data!.snapshot.value as Map;
+                final todayDoses = medTimesMap.entries.map((entry) {
+                  final med = Map<String, dynamic>.from(entry.value as Map);
+                  return _TodayDose(
+                    time: med['time'] ?? '00:00',
+                    name: med['name'] ?? 'N/A',
+                    dosage: med['dosage'] ?? 'N/A',
+                  );
+                }).toList();
+
+                todayDoses.sort((a, b) => a.time.compareTo(b.time));
+
+                if (todayDoses.isEmpty) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.check_circle_outline, size: 48, color: Colors.grey.shade300),
+                        const SizedBox(height: 12),
+                        Text(
+                          "No medication scheduled for today.",
+                          style: TextStyle(color: Constants.mediumGrey, fontSize: 16),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return FutureBuilder<DatabaseEvent>(
+                    future: _historyRef.once(),
+                    builder: (context, historySnapshot) {
+                      final historyMap = historySnapshot.data?.snapshot.value
+                      as Map<dynamic, dynamic>? ??
+                          {};
+
+                      return Column(
+                        children: [
+                          for (int i = 0; i < todayDoses.length; i++)
+                            Builder(builder: (context) {
+                              final dose = todayDoses[i];
+
+                              // CRITICAL: Create the unique key, ensuring spaces are replaced
+                              final String safeName =
+                              dose.name.replaceAll(' ', '_');
+                              final String doseKey =
+                                  "${safeName}_${dose.time.replaceAll(":", "")}";
+
+                              String status = historyMap[doseKey]?['status']
+                                  ?.toString() ??
+                                  'pending';
+
+                              // CRITICAL: Infer 'missed' status if dose is in the past and no record exists
+                              if (status == 'pending') {
+                                try {
+                                  final timeParts = dose.time.split(':');
+                                  final scheduledTime = DateTime(
+                                    DateTime.now().year,
+                                    DateTime.now().month,
+                                    DateTime.now().day,
+                                    int.parse(timeParts[0]),
+                                    int.parse(timeParts[1]),
+                                  );
+
+                                  // If scheduled time is in the past, mark as 'missed'
+                                  if (scheduledTime
+                                      .isBefore(DateTime.now())) {
+                                    status = 'missed';
+                                  }
+                                } catch (e) {
+                                  // Keep status as 'pending' on parsing error
+                                }
+                              }
+
+                              return _buildMedicationItem(dose, status);
+                            }),
+                        ],
+                      );
+                    });
+              },
             ),
           ),
           // --- END OF MODIFIED SCHEDULE STREAM BUILDER ---
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
         ],
       ),
     );

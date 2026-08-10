@@ -91,19 +91,18 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
     required String text,
     IconData? icon,
     required Gradient gradient,
-    double verticalPadding = 16.0,
+    double verticalPadding = 18.0, // Slightly taller for a premium feel
     FontWeight fontWeight = FontWeight.bold,
     double fontSize = 16,
   }) {
-    // ... (This function is unchanged)
     final bool isEnabled = onPressed != null;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12.0),
+      borderRadius: BorderRadius.circular(16.0), // Matched Home Screen radius
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
           disabledBackgroundColor: Colors.transparent,
@@ -118,7 +117,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
-            borderRadius: BorderRadius.circular(12.0),
+            borderRadius: BorderRadius.circular(16.0),
           ),
           child: Container(
             width: double.infinity,
@@ -128,17 +127,25 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
                 ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: Colors.white, size: 20),
+                Icon(icon, color: Colors.white, size: 22),
                 const SizedBox(width: 8),
                 Text(
                   text,
-                  style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: fontWeight,
+                      fontSize: fontSize,
+                      letterSpacing: 0.5),
                 ),
               ],
             )
                 : Text(
               text,
-              style: TextStyle(color: Colors.white, fontWeight: fontWeight, fontSize: fontSize),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: fontWeight,
+                  fontSize: fontSize,
+                  letterSpacing: 0.5),
             ),
           ),
         ),
@@ -154,6 +161,27 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
 
     return Column(
       children: [
+        const SizedBox(height: 12),
+        // Title Header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Row(
+            children: [
+              Icon(Icons.edit_calendar_rounded, color: Constants.darkGrey, size: 24),
+              const SizedBox(width: 10),
+              Text(
+                'Manage Schedule',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Constants.darkGrey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
         Expanded(
           // --- 2. Stream from RTDB ---
           child: StreamBuilder<DatabaseEvent>(
@@ -168,20 +196,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
 
               // --- 3. Parse RTDB data ---
               if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.calendar_month, size: 80, color: Constants.darkblue),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No active schedule found.\nTap "Add New" to create one!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 18, color: Constants.mediumGrey),
-                      ),
-                    ],
-                  ),
-                );
+                return _buildEmptyState();
               }
 
               // Data is a Map
@@ -194,25 +209,20 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
               }).toList();
               // --- END OF FIX ---
 
+              // Sort medications by time so they appear chronologically
+              medicationsList.sort((a, b) {
+                String timeA = a['data']['time'] ?? '00:00';
+                String timeB = b['data']['time'] ?? '00:00';
+                return timeA.compareTo(timeB);
+              });
+
               if (medicationsList.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.calendar_month, size: 80, color: Constants.darkblue),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No active schedule found.\nTap "Add New" to create one!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 18, color: Constants.mediumGrey),
-                      ),
-                    ],
-                  ),
-                );
+                return _buildEmptyState();
               }
 
               return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 itemCount: medicationsList.length,
                 itemBuilder: (context, index) {
                   final medEntry = medicationsList[index];
@@ -223,46 +233,93 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
                   final medDosage = med['dosage'] ?? 'N/A';
                   final medTime = med['time'] ?? '00:00'; // Only one time
 
-                  return Card(
-                    elevation: 2,
+                  return Container(
                     margin: const EdgeInsets.only(bottom: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        ListTile(
-                          contentPadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                          title: Text(
-                            medName,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
+                        // Time Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E88E5).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            _formatTime12h(medTime),
+                            style: const TextStyle(
+                              color: Color(0xFF1E88E5),
                               fontSize: 16,
-                              color: Constants.darkblue,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          subtitle: Column(
+                        ),
+                        const SizedBox(width: 16),
+
+                        // Medication Details
+                        Expanded(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const SizedBox(height: 4),
-                              Text('Dosage: $medDosage', style: TextStyle(color: Constants.darkGrey)),
-                              const SizedBox(height: 2),
                               Text(
-                                'Time: ${_formatTime12h(medTime)}',
+                                medName,
                                 style: TextStyle(
-                                  fontStyle: FontStyle.italic,
-                                  color: Constants.mediumGrey,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 18,
+                                  color: Constants.darkGrey,
                                 ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(Icons.medication_rounded, size: 14, color: Constants.mediumGrey),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    medDosage,
+                                    style: TextStyle(
+                                      color: Constants.mediumGrey,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                          trailing: IconButton(
-                            icon: Icon(Icons.edit_outlined, color: Constants.darkblue),
-                            onPressed: () {
-                              // Pass the original map data and the key
+                        ),
+
+                        // Edit Button
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(50),
+                            onTap: () {
                               _navigateToEditSingleMed(med, medKey);
                             },
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.edit_rounded,
+                                color: Constants.darkGrey,
+                                size: 20,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -274,38 +331,90 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
           ),
         ),
 
-        // ... (Bottom buttons are unchanged) ...
+        // Bottom Action Buttons
         Container(
-          padding: const EdgeInsets.all(20.0),
-          decoration: BoxDecoration(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          decoration: const BoxDecoration(
             color: Colors.transparent,
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               Expanded(
+                flex: 4,
                 child: _buildGradientButton(
                   onPressed: _navigateToHistory,
                   text: 'History',
-                  icon: Icons.history,
+                  icon: Icons.history_rounded,
                   gradient: kOrangeGradient,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
+                flex: 5, // Make the Add New button slightly larger
                 child: _buildGradientButton(
                   onPressed: _navigateToAddSchedule,
                   text: 'Add New',
-                  icon: Icons.add,
+                  icon: Icons.add_rounded,
                   gradient: kPrimaryGradient,
                 ),
               ),
             ],
           ),
         ),
-
-        const SizedBox(height: 16),
       ],
+    );
+  }
+
+  // Helper widget for a beautiful empty state
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              )
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.calendar_month_rounded, size: 64, color: Color(0xFF1E88E5)),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'No Schedule Yet',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Constants.darkGrey
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tap "Add New" below to create your first medication reminder.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, color: Constants.mediumGrey, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

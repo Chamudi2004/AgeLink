@@ -4,52 +4,84 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// Make sure you have these files and the imports are correct
 import 'family_permissions_page.dart';
 import 'device_page.dart';
 import 'settings_page.dart';
 import 'help_page.dart';
 import 'edit_profile_page.dart';
-import 'constants.dart'; // Make sure you import constants.dart for kAppId
+import 'constants.dart';
+import 'custom_snackbar.dart'; // Using the premium notification helper
 
 class AppMenuDrawer extends StatelessWidget {
   const AppMenuDrawer({super.key});
 
-  // Use kAppId from constants.dart
   final String appId = kAppId;
 
   void _logout(BuildContext context) async {
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Logging out...')),
+    CustomSnackBar.show(
+        context: context,
+        message: 'Logging out...'
     );
     await FirebaseAuth.instance.signOut();
   }
 
+  void _navigateTo(BuildContext context, Widget page) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => page),
+    );
+  }
+
+  // Premium Menu Item Builder
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
     required VoidCallback onTap,
     Color? color,
+    bool isLogout = false,
   }) {
-    final itemColor = color ?? Colors.black87;
-    return ListTile(
-      leading: Icon(icon, color: itemColor),
-      title: Text(
-        title,
-        style: TextStyle(fontSize: 16, color: itemColor),
-      ),
-      onTap: onTap,
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 0),
-    );
-  }
+    final itemColor = color ?? Constants.darkGrey;
+    final bgColor = color?.withOpacity(0.1) ?? const Color(0xFF1E88E5).withOpacity(0.1);
+    final iconColor = color ?? const Color(0xFF1E88E5);
 
-  void _navigateTo(BuildContext context, Widget page) {
-    Navigator.pop(context); // Close the drawer
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => page),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8.0, left: 16.0, right: 16.0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: itemColor
+                    ),
+                  ),
+                ),
+                if (!isLogout)
+                  Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -61,8 +93,7 @@ class AppMenuDrawer extends StatelessWidget {
       return const Drawer(child: Center(child: Text('Not logged in.')));
     }
 
-    // --- 1. THIS IS THE FIX ---
-    // This is the CORRECT path that your EditProfilePage saves to.
+    // --- 1. FIRESTORE PATH ---
     final userDocRef = FirebaseFirestore.instance
         .collection('artifacts')
         .doc(appId)
@@ -70,47 +101,55 @@ class AppMenuDrawer extends StatelessWidget {
         .doc(user.uid)
         .collection('profile')
         .doc('details');
-    // --- END OF FIX ---
+    // --- END OF PATH ---
 
     return Drawer(
       child: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFFE6F0FF),
-              Color(0xFFF7FAFF),
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
+          color: Color(0xFFF8F9FA), // Very light clean background
         ),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              //1. Header section
+              // 1. Header & Close Button
               Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 8.0),
+                padding: const EdgeInsets.fromLTRB(20.0, 16.0, 12.0, 0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    // --- CHANGED TO LOGO ---
                     Image.asset(
                       'assets/agelink_logo.png',
-                      height: 24,
-                      errorBuilder: (context, error, stackTrace) => const Text('AgeLink'), // Fallback text
+                      height: 32, // Adjust this height if needed
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Text(
+                        'AgeLink', // Fallback if image path is wrong
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0D47A1),
+                        ),
+                      ),
                     ),
+                    // --- END OF LOGO ---
+
                     IconButton(
-                      icon: const Icon(Icons.close, color: Color(0xFF0D47A1)),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
+                      icon: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.close_rounded, color: Constants.darkGrey, size: 20),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),
               ),
 
-              // --- 2. THIS IS THE SECOND FIX ---
-              // This StreamBuilder logic correctly handles all cases
+              // 2. Profile Card StreamBuilder
               StreamBuilder<DocumentSnapshot>(
                 stream: userDocRef.snapshots(),
                 builder: (context, snapshot) {
@@ -132,108 +171,210 @@ class AppMenuDrawer extends StatelessWidget {
                   }
 
                   return Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20.0, vertical: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-
-                        CircleAvatar(
-                          radius: 32,
-                          backgroundColor: Colors.white,
-                          backgroundImage: (profileImageUrl != null)
-                              ? NetworkImage(profileImageUrl)
-                              : null,
-                          child: (profileImageUrl == null)
-                              ? const Icon(
-                            Icons.person_outline,
-                            size: 36,
-                            color: Color(0xFF0D47A1),
-                          )
-                              : null,
+                    padding: const EdgeInsets.all(20.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(20.0),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [const Color(0xFF1E88E5), const Color(0xFF0D47A1)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        const SizedBox(height: 16),
-
-                        Text(
-                          name, // This will now be correct
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0D47A1),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0D47A1).withOpacity(0.3),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          email,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black54,
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: CircleAvatar(
+                                  radius: 30,
+                                  backgroundColor: Colors.white,
+                                  backgroundImage: (profileImageUrl != null && profileImageUrl.isNotEmpty)
+                                      ? NetworkImage(profileImageUrl)
+                                      : null,
+                                  child: (profileImageUrl == null || profileImageUrl.isEmpty)
+                                      ? const Icon(Icons.person_rounded, size: 34, color: Color(0xFF0D47A1))
+                                      : null,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      email,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.white.withOpacity(0.8),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: () {
-                            _navigateTo(context, const EditProfilePage());
-                          },
-                          child: const Text(
-                            'Edit Profile',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _navigateTo(context, const EditProfilePage()),
+                              icon: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF0D47A1)),
+                              label: const Text(
+                                'Edit Profile',
+                                style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: const Color(0xFF0D47A1),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 },
               ),
-              // --- END OF FIX ---
 
-              // 3. Menu Items
-              _buildMenuItem(
-                icon: Icons.people_outline,
-                title: 'Family & Permissions',
-                onTap: () {
-                  _navigateTo(context, const FamilyPermissionsPage());
-                },
+              // 3. Main Menu Items
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    children: [
+                      _buildMenuItem(
+                        icon: Icons.family_restroom_rounded,
+                        title: 'Family & Permissions',
+                        onTap: () => _navigateTo(context, const FamilyPermissionsPage()),
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.devices_rounded,
+                        title: 'Device Settings',
+                        onTap: () => _navigateTo(context, const DevicePage()),
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.settings_rounded,
+                        title: 'App Settings',
+                        onTap: () => _navigateTo(context, const SettingsPage()),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                        child: Divider(color: Colors.grey.shade300, height: 1),
+                      ),
+
+                      _buildMenuItem(
+                        icon: Icons.help_outline_rounded,
+                        title: 'Help & Support',
+                        onTap: () => _navigateTo(context, const HelpPage()),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              _buildMenuItem(
-                icon: Icons.devices_other_outlined,
-                title: 'Device',
-                onTap: () {
-                  _navigateTo(context, const DevicePage());
-                },
-              ),
-              _buildMenuItem(
-                icon: Icons.settings_outlined,
-                title: 'Settings',
-                onTap: () {
-                  _navigateTo(context, const SettingsPage());
-                },
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                child: Divider(color: Colors.grey),
-              ),
-              _buildMenuItem(
-                icon: Icons.help_outline,
-                title: 'Help',
-                onTap: () {
-                  _navigateTo(context, const HelpPage());
-                },
-              ),
-              _buildMenuItem(
-                icon: Icons.logout,
-                title: 'Log Out',
-                color: Colors.red,
-                onTap: () => _logout(context),
+
+              // 4. Log Out Button at Bottom
+              Container(
+                padding: const EdgeInsets.only(bottom: 24.0, top: 8.0),
+                child: _buildMenuItem(
+                  icon: Icons.logout_rounded,
+                  title: 'Log Out',
+                  color: Colors.redAccent,
+                  isLogout: true,
+                  onTap: () => _showLogoutConfirmation(context),
+                ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  // Safe Logout Confirmation Dialog
+  void _showLogoutConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              ),
+              const SizedBox(width: 12),
+              const Text('Log Out'),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to log out of AgeLink?',
+            style: TextStyle(color: Constants.darkGrey, fontSize: 16),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                elevation: 0,
+              ),
+              onPressed: () {
+                Navigator.pop(dialogContext); // Close dialog
+                _logout(context); // Run actual logout
+              },
+              child: const Text('Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+          ],
+        );
+      },
     );
   }
 }

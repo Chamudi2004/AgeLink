@@ -1,3 +1,5 @@
+// lib/edit_profile_page.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart'; // <-- THIS WAS THE MISSING LINE
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
+import 'custom_snackbar.dart'; // <-- Added premium notifications
 
 // --- (Gradient constant) ---
 const kPrimaryGradient = LinearGradient(
@@ -56,45 +59,97 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.dispose();
   }
 
-  // --- (Reusable Gradient Button) ---
+  // --- Premium Button Helper ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
     IconData? icon,
     required Gradient gradient,
+    double verticalPadding = 18.0,
   }) {
+    final bool isEnabled = onPressed != null;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12.0),
+      borderRadius: BorderRadius.circular(16.0),
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
         ),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: BorderRadius.circular(12.0),
+            gradient: isEnabled
+                ? gradient
+                : LinearGradient(
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(16.0),
           ),
           child: Container(
-            // Make button width fit its content
-            width: null,
-            padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0), // Added horizontal padding
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: verticalPadding),
             alignment: Alignment.center,
             child: (icon != null)
                 ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min, // Fit content
               children: [
-                Icon(icon, color: Colors.white, size: 20),
+                Icon(icon, color: Colors.white, size: 22),
                 const SizedBox(width: 8),
-                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
               ],
             )
-                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
           ),
+        ),
+      ),
+    );
+  }
+
+  // --- Premium Input Field Helper ---
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? Function(String?)? validator,
+    bool readOnly = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: readOnly ? Colors.grey.shade100 : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: readOnly ? [] : [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: readOnly ? Border.all(color: Colors.grey.shade300, width: 1.5) : null,
+      ),
+      child: TextFormField(
+        controller: controller,
+        validator: validator,
+        readOnly: readOnly,
+        style: TextStyle(
+            color: readOnly ? Constants.mediumGrey : Constants.darkGrey,
+            fontWeight: FontWeight.w600
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Constants.mediumGrey),
+          prefixIcon: Icon(icon, color: readOnly ? Constants.mediumGrey : const Color(0xFF1E88E5)),
+          suffixIcon: readOnly ? const Icon(Icons.lock_outline_rounded, color: Colors.grey, size: 20) : null,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.transparent,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         ),
       ),
     );
@@ -114,8 +169,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load profile data: $e')),
+      CustomSnackBar.show(
+          context: context,
+          message: 'Failed to load profile data.',
+          isError: true
       );
     } finally {
       if (mounted) {
@@ -127,26 +184,55 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void _showImageSourceActionSheet() {
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera),
-              title: const Text('Take Photo'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Choose from Gallery'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16.0, top: 8.0),
+          child: Wrap(
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                child: Text('Update Profile Picture', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+                  child: const Icon(Icons.photo_camera_rounded, color: Color(0xFF1E88E5)),
+                ),
+                title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+                  child: const Icon(Icons.photo_library_rounded, color: Color(0xFF1E88E5)),
+                ),
+                title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -175,8 +261,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       return downloadUrl;
     } catch (e) {
       if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to upload image: $e')),
+      CustomSnackBar.show(
+          context: context,
+          message: 'Failed to upload image.',
+          isError: true
       );
       return null;
     }
@@ -195,14 +283,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }, SetOptions(merge: true));
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile saved!')),
+      CustomSnackBar.show(
+          context: context,
+          message: 'Profile saved successfully!'
       );
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save profile: $e')),
+      CustomSnackBar.show(
+          context: context,
+          message: 'Failed to save profile.',
+          isError: true
       );
     } finally {
       if (mounted) {
@@ -213,73 +304,111 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    // --- 2. REPLACED Scaffold with GradientScaffold ---
     return GradientScaffold(
       appBar: AppBar(
-        // --- 3. Made AppBar transparent ---
         title: const Text(
           'Edit Profile',
           style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: BackButton(color: Colors.black87),
+        leading: const BackButton(color: Color(0xFF0D47A1)),
+        centerTitle: true,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(24.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              CircleAvatar(
-                radius: 60,
-                // Make the background transparent to show placeholder
-                backgroundColor: Colors.white.withOpacity(0.5),
-                backgroundImage: _pickedImage != null
-                    ? FileImage(_pickedImage!)
-                    : _currentImageUrl != null
-                    ? NetworkImage(_currentImageUrl!)
-                    : null,
-                child: _pickedImage == null && _currentImageUrl == null
-                    ? const Icon(Icons.person, size: 60, color: Colors.grey)
-                    : null,
+              const SizedBox(height: 16),
+              // Premium Avatar with Camera Badge
+              Center(
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.white, width: 4),
+                      ),
+                      child: CircleAvatar(
+                        radius: 65,
+                        backgroundColor: Colors.white.withOpacity(0.5),
+                        backgroundImage: _pickedImage != null
+                            ? FileImage(_pickedImage!)
+                            : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty)
+                            ? NetworkImage(_currentImageUrl!)
+                            : null,
+                        child: _pickedImage == null && (_currentImageUrl == null || _currentImageUrl!.isEmpty)
+                            ? const Icon(Icons.person_rounded, size: 70, color: Colors.grey)
+                            : null,
+                      ),
+                    ),
+                    // Edit Badge
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _showImageSourceActionSheet,
+                        borderRadius: BorderRadius.circular(50),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E88E5),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              TextButton(
-                onPressed: _showImageSourceActionSheet,
-                child: const Text('Change Photo'),
-              ),
+              const SizedBox(height: 40),
 
-              const SizedBox(height: 32),
-
-              TextFormField(
+              // Input Fields
+              _buildInputField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Full Name'),
-                validator: (value) =>
-                value!.isEmpty ? 'Please enter your name' : null,
+                label: 'Full Name',
+                icon: Icons.person_rounded,
+                validator: (value) => value == null || value.trim().isEmpty ? 'Please enter your name' : null,
               ),
-
               const SizedBox(height: 20),
 
-              TextFormField(
+              _buildInputField(
                 controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
+                label: 'Email Address',
+                icon: Icons.email_rounded,
                 readOnly: true, // Email is not editable
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 48),
 
-              // Align the button to the left
-              Align(
-                alignment: Alignment.centerLeft,
-                // --- 4. REPLACED with Gradient Button ---
-                child: _buildGradientButton(
-                  onPressed: _saveProfile,
-                  text: 'Save Changes',
-                  gradient: kPrimaryGradient,
-                ),
+              // Save Button
+              _buildGradientButton(
+                onPressed: _saveProfile,
+                text: 'Save Changes',
+                icon: Icons.check_circle_outline_rounded,
+                gradient: kPrimaryGradient,
               ),
             ],
           ),
