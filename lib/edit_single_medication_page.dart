@@ -6,6 +6,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
+import 'custom_snackbar.dart';
 
 // --- (Gradients are unchanged) ---
 const kPrimaryGradient = LinearGradient(
@@ -86,22 +87,22 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
     required String text,
     IconData? icon,
     required Gradient gradient,
-    double verticalPadding = 16.0,
+    double verticalPadding = 18.0, // Increased for premium feel
   }) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12.0),
+      borderRadius: BorderRadius.circular(16.0), // Matched UI
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
         ),
         child: Ink(
           decoration: BoxDecoration(
             gradient: gradient,
-            borderRadius: BorderRadius.circular(12.0),
+            borderRadius: BorderRadius.circular(16.0),
           ),
           child: Container(
             width: double.infinity,
@@ -111,12 +112,12 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
                 ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: Colors.white, size: 20),
+                Icon(icon, color: Colors.white, size: 22),
                 const SizedBox(width: 8),
-                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
               ],
             )
-                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
           ),
         ),
       ),
@@ -127,7 +128,19 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
   Future<void> _selectTime() async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      initialTime: _times.isNotEmpty ? _times.first : TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1E88E5), // header background color
+              onPrimary: Colors.white, // header text color
+              onSurface: Colors.black, // body text color
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null && mounted) {
       setState(() {
@@ -143,7 +156,7 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must have at least one time.')),
+        const SnackBar(content: Text('You must have at least one scheduled time.')),
       );
     }
   }
@@ -176,15 +189,18 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
       await _medsRef.update(updates);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Medication updated!')),
+        CustomSnackBar.show(
+            context: context,
+            message: 'Medication updated successfully!'
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
+        CustomSnackBar.show(
+          context: context,
+          message: 'Failed to update: $e',
+          isError: true,
         );
       }
     } finally {
@@ -226,16 +242,35 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Delete Medication?'),
-          content: Text('Are you sure you want to delete "${_nameController.text}"?'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+              const SizedBox(width: 10),
+              const Text('Delete Schedule?'),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to permanently delete "${_nameController.text}" from your schedule?',
+            style: TextStyle(color: Constants.darkGrey, fontSize: 16),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Constants.mediumGrey,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
               child: const Text('Cancel'),
               onPressed: () => Navigator.of(context).pop(),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text('Delete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               onPressed: () {
                 Navigator.of(context).pop();
                 _deleteMedication();
@@ -244,6 +279,45 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
           ],
         );
       },
+    );
+  }
+
+  // Helper widget to style input fields
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? Function(String?)? validator,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextFormField(
+        controller: controller,
+        validator: validator,
+        style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Constants.mediumGrey),
+          prefixIcon: Icon(icon, color: const Color(0xFF1E88E5)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.transparent,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        ),
+      ),
     );
   }
 
@@ -257,90 +331,163 @@ class _EditSingleMedicationPageState extends State<EditSingleMedicationPage> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: BackButton(color: Colors.black87),
+        leading: BackButton(color: Constants.darkblue),
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextFormField(
+              // Medication Details Card
+              const Padding(
+                padding: EdgeInsets.only(left: 4, bottom: 8),
+                child: Text('Medication Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+              ),
+              _buildInputField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Medicine Name'),
+                label: 'Medicine Name',
+                icon: Icons.medication_rounded,
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
-              const SizedBox(height: 20),
-              TextFormField(
+              const SizedBox(height: 16),
+              _buildInputField(
                 controller: _dosageController,
-                decoration: const InputDecoration(labelText: 'Dosage'),
+                label: 'Dosage (e.g., 2 Pills, 10ml)',
+                icon: Icons.scale_rounded,
               ),
-              const SizedBox(height: 24),
-              const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 32),
+
+              // Frequency Section
+              const Padding(
+                padding: EdgeInsets.only(left: 4, bottom: 8),
+                child: Text('Frequency', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+              ),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
                 child: Row(
                   children: ['Daily', 'Weekly', 'Custom'].map((String value) {
+                    final isSelected = _frequency == value;
                     return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
+                      padding: const EdgeInsets.only(right: 12.0),
                       child: ChoiceChip(
-                        label: Text(value),
-                        selected: _frequency == value,
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: Text(value),
+                        ),
+                        selected: isSelected,
                         onSelected: (bool selected) {
                           if (selected) {
-                            setState(() {
-                              _frequency = value;
-                            });
+                            setState(() { _frequency = value; });
                           }
                         },
-                        selectedColor: Constants.darkblue,
-                        backgroundColor: Constants.lightBlue.withOpacity(0.5),
+                        selectedColor: const Color(0xFF1E88E5),
+                        backgroundColor: Colors.white,
+                        shadowColor: Colors.black.withOpacity(0.1),
+                        elevation: isSelected ? 4 : 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: isSelected ? const Color(0xFF1E88E5) : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
                         labelStyle: TextStyle(
-                          color: _frequency == value ? Colors.white : Constants.darkGrey,
-                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.white : Constants.darkGrey,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     );
                   }).toList(),
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Time(s)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-                  TextButton(
-                    onPressed: _selectTime,
-                    child: const Text('Add Time'),
-                  ),
-                ],
+              const SizedBox(height: 32),
+
+              // Time Section
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Scheduled Time', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: _selectTime,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: Text(
+                            'Edit Time',
+                            style: TextStyle(color: const Color(0xFF1E88E5), fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               Wrap(
-                spacing: 8.0,
+                spacing: 12.0,
+                runSpacing: 12.0,
                 children: _times.map((time) {
-                  return Chip(
-                    label: Text(time.format(context)),
-                    onDeleted: () => _removeTime(time),
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E88E5).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF1E88E5).withOpacity(0.3), width: 1.5),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.access_time_rounded, color: Color(0xFF1E88E5), size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          time.format(context),
+                          style: const TextStyle(
+                            color: Color(0xFF1E88E5),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () => _removeTime(time),
+                          child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
+                        ),
+                      ],
+                    ),
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 48),
+
+              // Action Buttons
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : _buildGradientButton(
-                onPressed: _updateMedication,
-                text: 'Save Changes',
-                icon: Icons.save,
-                gradient: kPrimaryGradient,
+                  : Column(
+                children: [
+                  _buildGradientButton(
+                    onPressed: _updateMedication,
+                    text: 'Save Changes',
+                    icon: Icons.save_rounded,
+                    gradient: kPrimaryGradient,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildGradientButton(
+                    onPressed: _showDeleteConfirmation,
+                    text: 'Delete Medication',
+                    icon: Icons.delete_outline_rounded,
+                    gradient: kRedGradient,
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              _buildGradientButton(
-                onPressed: _showDeleteConfirmation,
-                text: 'Delete Medication',
-                icon: Icons.delete_forever,
-                gradient: kRedGradient,
-              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
