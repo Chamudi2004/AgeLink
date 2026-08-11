@@ -1,4 +1,4 @@
-# AgeLink 🧓🔗
+# AgeLink 🔗
 **Empowering independent elderly living through voice-assisted IoT.**
 
 **Team:** Team XTurbo   
@@ -77,4 +77,4 @@ The AgeLink system consists of two main components: the physical hardware device
 ---
 
 ## 🎥 Demonstration Video Link
-**[Insert YouTube / Drive Link to your 360° Demo and Pitch Video Here]**
+**https://youtu.be/Dg8cj1AjC2k**
