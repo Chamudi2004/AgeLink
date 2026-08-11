@@ -70,7 +70,7 @@ The AgeLink system consists of two main components: the physical hardware device
 
 ---
 
-## 📝 Anything Else Judges Should Note
+## 📝 Note
 
 * **Hardware Dependency:** Please note that this mobile application is designed specifically as a companion to the AgeLink physical device. Without the active ESP32 hardware to trigger SOS alerts or confirm medication doses, the app's real-time event functionalities cannot be fully demonstrated in isolation.
 
