@@ -102,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
           databaseURL:
           "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app");
 
-      final uid = _currentUser!.uid;
+      final uid = _currentUser.uid;
       // Get today's date in 'YYYY-MM-DD' format for the history path
       final todayDate = DateFormat('yyyy-MM-dd').format(now);
 
@@ -139,12 +139,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (status == 'taken') {
       icon = Icons.check_circle_rounded;
       iconColor = Constants.greenColor;
-      bgColor = Constants.greenColor.withOpacity(0.08);
+      bgColor = Constants.greenColor.withValues(alpha: 0.08);
       timeColor = Constants.greenColor;
     } else if (status == 'missed') {
       icon = Icons.cancel_rounded;
       iconColor = Colors.redAccent;
-      bgColor = Colors.redAccent.withOpacity(0.08);
+      bgColor = Colors.redAccent.withValues(alpha: 0.08);
       timeColor = Colors.redAccent;
     } else {
       // pending or not found
@@ -167,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
         boxShadow: status == 'pending'
             ? [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             spreadRadius: 0,
             blurRadius: 10,
             offset: const Offset(0, 4),
@@ -181,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: status == 'pending' ? Colors.grey.shade100 : Colors.white.withOpacity(0.5),
+              color: status == 'pending' ? Colors.grey.shade100 : Colors.white.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
@@ -222,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: iconColor.withOpacity(0.1),
+              color: iconColor.withValues(alpha: 0.1),
             ),
             child: Icon(
               icon,
@@ -316,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: isOnline
-                          ? [Constants.greenColor.withOpacity(0.8), Constants.greenColor]
+                          ? [Constants.greenColor.withValues(alpha: 0.8), Constants.greenColor]
                           : [Colors.redAccent.shade200, Colors.redAccent.shade400],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -325,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     boxShadow: [
                       BoxShadow(
                         color: (isOnline ? Constants.greenColor : Colors.redAccent)
-                            .withOpacity(0.3),
+                            .withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -336,7 +336,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -363,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               isOnline ? 'Ready for today\'s schedule' : 'Please check connection',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                                 fontSize: 13,
                               ),
                             ),

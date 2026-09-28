@@ -7,7 +7,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
 import 'pair_device_page.dart';
-import 'package:flutter/services.dart';
 
 import 'constants.dart';
 import 'gradient_scaffold.dart';
@@ -54,11 +53,11 @@ class _DevicePageState extends State<DevicePage> {
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app");
 
-      _userRemindersRef = db.ref('reminders/${_currentUser!.uid}');
+      _userRemindersRef = db.ref('reminders/${_currentUser.uid}');
       // Cache the stream here in initState so it never changes during slider drag
       _deviceStream = _userRemindersRef!.onValue;
     } catch (e) {
-      print("Error initializing Firebase: $e");
+      debugPrint("Error initializing Firebase: $e");
     }
   }
 
@@ -88,11 +87,11 @@ class _DevicePageState extends State<DevicePage> {
       try {
         await FirebaseFirestore.instance
             .collection('users')
-            .doc(_currentUser!.uid)
+            .doc(_currentUser.uid)
             .update({'pairedDeviceId': FieldValue.delete()});
       } on FirebaseException catch (e) {
         if (e.code == 'not-found') {
-          print("User doc not found in Firestore, proceeding with RTDB cleanup.");
+          debugPrint("User doc not found in Firestore, proceeding with RTDB cleanup.");
         }
       }
 
@@ -127,7 +126,7 @@ class _DevicePageState extends State<DevicePage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.redAccent.withOpacity(0.1),
+                  color: Colors.redAccent.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.link_off_rounded, color: Colors.redAccent),
@@ -224,12 +223,12 @@ class _DevicePageState extends State<DevicePage> {
         child: Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               )
@@ -242,7 +241,7 @@ class _DevicePageState extends State<DevicePage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.devices_rounded, size: 64, color: Color(0xFF1E88E5)),
@@ -286,7 +285,7 @@ class _DevicePageState extends State<DevicePage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E88E5).withOpacity(0.1),
+              color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: const Color(0xFF1E88E5), size: 20),
@@ -305,7 +304,7 @@ class _DevicePageState extends State<DevicePage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: (valueColor ?? Constants.darkGrey).withOpacity(0.1),
+                      color: (valueColor ?? Constants.darkGrey).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -423,7 +422,7 @@ class _DevicePageState extends State<DevicePage> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
+                              color: Colors.black.withValues(alpha: 0.04),
                               blurRadius: 15,
                               offset: const Offset(0, 5),
                             ),
@@ -450,7 +449,7 @@ class _DevicePageState extends State<DevicePage> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
+                              color: Colors.black.withValues(alpha: 0.04),
                               blurRadius: 15,
                               offset: const Offset(0, 5),
                             ),
@@ -465,7 +464,7 @@ class _DevicePageState extends State<DevicePage> {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1E88E5).withOpacity(0.1),
+                                    color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(Icons.volume_up_rounded, color: Color(0xFF1E88E5), size: 20),
@@ -489,7 +488,7 @@ class _DevicePageState extends State<DevicePage> {
                                 activeTrackColor: const Color(0xFF1E88E5),
                                 inactiveTrackColor: Colors.blue.shade100,
                                 thumbColor: Colors.white,
-                                overlayColor: const Color(0xFF1E88E5).withOpacity(0.2),
+                                overlayColor: const Color(0xFF1E88E5).withValues(alpha: 0.2),
                                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14, elevation: 4),
                               ),
                               child: Slider(

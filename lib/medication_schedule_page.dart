@@ -42,7 +42,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
       _medsRef = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
-      ).ref('reminders/${_currentUser!.uid}/schedule/med_times');
+      ).ref('reminders/${_currentUser.uid}/schedule/med_times');
     }
   }
   // --- END OF FIX ---
@@ -113,7 +113,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
             gradient: isEnabled
                 ? gradient
                 : LinearGradient(
-              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withValues(alpha: 0.7)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -241,7 +241,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -254,7 +254,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E88E5).withOpacity(0.1),
+                            color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -373,12 +373,12 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
         child: Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               )
@@ -391,7 +391,7 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.calendar_month_rounded, size: 64, color: Color(0xFF1E88E5)),

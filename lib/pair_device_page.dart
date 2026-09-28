@@ -88,7 +88,7 @@ class _PairDevicePageState extends State<PairDevicePage> {
         });
       }
     }, onError: (e) {
-      print('Scan Error: $e');
+      debugPrint('Scan Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Scan Error: $e')));
       }
@@ -113,7 +113,7 @@ class _PairDevicePageState extends State<PairDevicePage> {
       _showWifiDialog(device.remoteId.toString());
 
     } catch (e) {
-      print('Connection Error: $e');
+      debugPrint('Connection Error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to connect: $e'))
@@ -179,7 +179,7 @@ class _PairDevicePageState extends State<PairDevicePage> {
       );
 
     } catch (e) {
-      print('Error sending credentials or saving to Firestore: $e');
+      debugPrint('Error sending credentials or saving to Firestore: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error: Could not complete pairing.')),
@@ -261,7 +261,7 @@ class _PairDevicePageState extends State<PairDevicePage> {
               itemBuilder: (context, index) {
                 var result = _scanResults[index];
                 return ListTile(
-                  title: Text(result.device.localName),
+                  title: Text(result.device.platformName),
                   subtitle: Text(result.device.remoteId.toString()),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _connectToDevice(result.device),

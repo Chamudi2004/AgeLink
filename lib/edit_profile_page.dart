@@ -83,7 +83,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             gradient: isEnabled
                 ? gradient
                 : LinearGradient(
-              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withValues(alpha: 0.7)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -123,7 +123,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: readOnly ? [] : [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -336,7 +336,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -345,7 +345,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                       child: CircleAvatar(
                         radius: 65,
-                        backgroundColor: Colors.white.withOpacity(0.5),
+                        backgroundColor: Colors.white.withValues(alpha: 0.5),
                         backgroundImage: _pickedImage != null
                             ? FileImage(_pickedImage!)
                             : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty)
@@ -370,7 +370,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             border: Border.all(color: Colors.white, width: 3),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
+                                color: Colors.black.withValues(alpha: 0.15),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),

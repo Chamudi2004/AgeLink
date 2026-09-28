@@ -287,7 +287,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
     } catch (e) {
       setState(() { _isSigningIn = false; });
       _showStatusDialog('Error', e.toString());
-      print(e);
+      debugPrint(e.toString());
     }
   }
 
@@ -361,7 +361,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     Container(
                       height: 300,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Center(child: CircularProgressIndicator()),

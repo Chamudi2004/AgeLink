@@ -1,5 +1,7 @@
 // lib/schedule_sync_service.dart
 
+import 'dart:developer' as developer;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -9,22 +11,22 @@ class ScheduleSyncService {
   /// This function reads the user's *active* schedule from Firestore
   /// and syncs it to the Realtime Database.
   static Future<void> triggerSync() async {
-    final _auth = FirebaseAuth.instance;
-    final _firestore = FirebaseFirestore.instance;
+    final auth = FirebaseAuth.instance;
+    final firestore = FirebaseFirestore.instance;
 
-    final _database = FirebaseDatabase.instanceFor(
+    final database = FirebaseDatabase.instanceFor(
         app: Firebase.app(),
         databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
     );
 
-    final uid = _auth.currentUser?.uid;
+    final uid = auth.currentUser?.uid;
 
     if (uid == null) return; // Not logged in
 
     try {
       // 1. Find the user's CURRENTLY ACTIVE schedule in Firestore
       // --- CRITICAL FIX: Updated to match your correct Firestore path ---
-      final activeScheduleQuery = await _firestore
+      final activeScheduleQuery = await firestore
           .collection('users')
           .doc(uid)
           .collection('medicationSchedules')
@@ -61,14 +63,14 @@ class ScheduleSyncService {
       }
 
       // 3. Get the RTDB path your device reads
-      final rtdbRef = _database.ref('reminders/$uid/schedule/med_times');
+      final rtdbRef = database.ref('reminders/$uid/schedule/med_times');
 
       // 4. Overwrite the "med_times" object with the new schedule
       await rtdbRef.set(rtdbScheduleObject);
 
-      print('SUCCESS: Synced schedule to RTDB for user $uid');
+      developer.log('Synced schedule to RTDB for user $uid', name: 'ScheduleSyncService');
     } catch (e) {
-      print('ERROR: Failed to sync schedule to RTDB: $e');
+      developer.log('Failed to sync schedule to RTDB', name: 'ScheduleSyncService', error: e);
     }
   }
 }

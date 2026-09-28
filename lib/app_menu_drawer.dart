@@ -42,7 +42,7 @@ class AppMenuDrawer extends StatelessWidget {
     bool isLogout = false,
   }) {
     final itemColor = color ?? Constants.darkGrey;
-    final bgColor = color?.withOpacity(0.1) ?? const Color(0xFF1E88E5).withOpacity(0.1);
+    final bgColor = color?.withValues(alpha: 0.1) ?? const Color(0xFF1E88E5).withValues(alpha: 0.1);
     final iconColor = color ?? const Color(0xFF1E88E5);
 
     return Container(
@@ -183,7 +183,7 @@ class AppMenuDrawer extends StatelessWidget {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF0D47A1).withOpacity(0.3),
+                            color: const Color(0xFF0D47A1).withValues(alpha: 0.3),
                             blurRadius: 15,
                             offset: const Offset(0, 8),
                           ),
@@ -198,7 +198,7 @@ class AppMenuDrawer extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(3),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
+                                  color: Colors.white.withValues(alpha: 0.2),
                                   shape: BoxShape.circle,
                                 ),
                                 child: CircleAvatar(
@@ -232,7 +232,7 @@ class AppMenuDrawer extends StatelessWidget {
                                       email,
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: Colors.white.withOpacity(0.8),
+                                        color: Colors.white.withValues(alpha: 0.8),
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -337,7 +337,7 @@ class AppMenuDrawer extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.redAccent.withOpacity(0.1),
+                  color: Colors.redAccent.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.logout_rounded, color: Colors.redAccent),

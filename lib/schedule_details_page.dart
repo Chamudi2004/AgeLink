@@ -30,9 +30,6 @@ class ScheduleDetailsPage extends StatelessWidget {
       final parts = time24h.split(':');
       final hour = int.parse(parts[0]);
       final minute = int.parse(parts[1]);
-      // Use an arbitrary date just to utilize the formatting
-      final dt = DateTime(2025, 1, 1, hour, minute);
-      // Constructing time manually to avoid needing BuildContext
       final String ampm = hour >= 12 ? 'PM' : 'AM';
       final int hour12 = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
       final String minStr = minute.toString().padLeft(2, '0');
@@ -77,14 +74,14 @@ class ScheduleDetailsPage extends StatelessWidget {
                 gradient: LinearGradient(
                   colors: isActive
                       ? [const Color(0xFF4CAF50), const Color(0xFF2E7D32)]
-                      : [Constants.darkblue.withOpacity(0.7), Constants.darkblue],
+                      : [Constants.darkblue.withValues(alpha: 0.7), Constants.darkblue],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: (isActive ? const Color(0xFF4CAF50) : Constants.darkblue).withOpacity(0.3),
+                    color: (isActive ? const Color(0xFF4CAF50) : Constants.darkblue).withValues(alpha: 0.3),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -98,13 +95,13 @@ class ScheduleDetailsPage extends StatelessWidget {
                     children: [
                       Icon(
                           isActive ? Icons.verified_rounded : Icons.history_rounded,
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           size: 32
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -131,7 +128,7 @@ class ScheduleDetailsPage extends StatelessWidget {
                   Text(
                     'Created on ${_formatTimestamp(createdAt)}',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                       fontSize: 14,
                     ),
                   ),
@@ -181,7 +178,7 @@ class ScheduleDetailsPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       )
@@ -193,7 +190,7 @@ class ScheduleDetailsPage extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E88E5).withOpacity(0.1),
+                          color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
