@@ -117,7 +117,7 @@ class _NotificationPageState extends State<NotificationPage> {
               border: Border.all(color: Colors.grey.shade200),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
@@ -156,12 +156,12 @@ class _NotificationPageState extends State<NotificationPage> {
         child: Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               )
@@ -174,7 +174,7 @@ class _NotificationPageState extends State<NotificationPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.notifications_off_rounded, size: 64, color: Color(0xFF1E88E5)),
@@ -247,7 +247,7 @@ class _NotificationPageState extends State<NotificationPage> {
               try {
                 alerts.add(DoseNotification.fromRTDB(child));
               } catch (e) {
-                print('Error parsing notification: $e');
+                debugPrint('Error parsing notification: $e');
               }
             }
             // Sort by date (Newest first)
@@ -278,7 +278,7 @@ class _NotificationPageState extends State<NotificationPage> {
               }
 
               final Color statusColor = notification.isTaken ? const Color(0xFF4CAF50) : Colors.redAccent;
-              final Color bgColor = notification.isTaken ? const Color(0xFF4CAF50).withOpacity(0.08) : Colors.redAccent.withOpacity(0.08);
+              final Color bgColor = notification.isTaken ? const Color(0xFF4CAF50).withValues(alpha: 0.08) : Colors.redAccent.withValues(alpha: 0.08);
               final IconData statusIcon = notification.isTaken ? Icons.check_circle_rounded : Icons.cancel_rounded;
               final String statusText = notification.isTaken ? 'Taken (${notification.reminderState})' : 'Missed';
 
@@ -296,7 +296,7 @@ class _NotificationPageState extends State<NotificationPage> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
+                          color: Colors.black.withValues(alpha: 0.03),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         )

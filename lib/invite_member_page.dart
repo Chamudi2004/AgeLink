@@ -50,7 +50,7 @@ class _InviteMemberPageState extends State<InviteMemberPage> {
             gradient: isEnabled
                 ? gradient
                 : LinearGradient(
-              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withValues(alpha: 0.7)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -88,7 +88,7 @@ class _InviteMemberPageState extends State<InviteMemberPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -136,7 +136,7 @@ class _InviteMemberPageState extends State<InviteMemberPage> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isSelected ? activeColor.withOpacity(0.05) : Colors.white,
+            color: isSelected ? activeColor.withValues(alpha: 0.05) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected ? activeColor : Colors.grey.shade200,
@@ -145,7 +145,7 @@ class _InviteMemberPageState extends State<InviteMemberPage> {
             boxShadow: [
               if (!isSelected)
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -156,7 +156,7 @@ class _InviteMemberPageState extends State<InviteMemberPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isSelected ? activeColor.withOpacity(0.1) : Colors.grey.shade100,
+                  color: isSelected ? activeColor.withValues(alpha: 0.1) : Colors.grey.shade100,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -203,7 +203,6 @@ class _InviteMemberPageState extends State<InviteMemberPage> {
 
   void _sendInvitation() {
     final email = _emailController.text.trim();
-    final mode = _selectedMode;
 
     if (email.isEmpty) {
       CustomSnackBar.show(
@@ -215,8 +214,6 @@ class _InviteMemberPageState extends State<InviteMemberPage> {
     }
 
     // TODO: Implement Firebase logic to send the invitation
-    print('Sending invitation to: $email with mode: $mode');
-
     CustomSnackBar.show(
         context: context,
         message: 'Invitation sent to $email successfully!'
@@ -255,7 +252,7 @@ class _InviteMemberPageState extends State<InviteMemberPage> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E88E5).withOpacity(0.1),
+                            color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Icons.person_add_alt_1_rounded, size: 48, color: Color(0xFF1E88E5)),

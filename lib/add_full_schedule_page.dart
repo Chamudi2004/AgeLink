@@ -57,7 +57,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
       _remindersRef = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
-      ).ref('reminders/${_currentUser!.uid}');
+      ).ref('reminders/${_currentUser.uid}');
     }
   }
 
@@ -87,7 +87,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
             gradient: isEnabled
                 ? gradient
                 : LinearGradient(
-              colors: [Constants.mediumGrey, Constants.mediumGrey.withOpacity(0.7)],
+              colors: [Constants.mediumGrey, Constants.mediumGrey.withValues(alpha: 0.7)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -126,7 +126,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -253,7 +253,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
       // --- FIRESTORE HISTORY UPDATE ---
       final firestoreRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUser!.uid)
+          .doc(_currentUser.uid)
           .collection('medicationSchedules');
 
       // 1. Deactivate all previously active schedules (for history logic)
@@ -294,7 +294,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
             isError: true
         );
       }
-      print("Schedule Save Error: $e");
+      debugPrint("Schedule Save Error: $e");
     } finally {
       if (mounted) {
         setState(() { _isLoading = false; });
@@ -382,7 +382,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: const Color(0xFF1E88E5).withOpacity(0.3), width: 1.5),
+                            side: BorderSide(color: const Color(0xFF1E88E5).withValues(alpha: 0.3), width: 1.5),
                           ),
                         ),
                       ),
@@ -422,7 +422,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -584,9 +584,9 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 children: entry.times.map((time) {
                   return Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E88E5).withOpacity(0.1),
+                      color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF1E88E5).withOpacity(0.3), width: 1.5),
+                      border: Border.all(color: const Color(0xFF1E88E5).withValues(alpha: 0.3), width: 1.5),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: Row(
